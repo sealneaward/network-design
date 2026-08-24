@@ -30,7 +30,7 @@ If WSL is not installed or configured properly on your Windows machine (common o
    ```
 5. Install the Containerlab WSL file by following these instructions on [WSL-Containerlab](https://containerlab.dev/windows/#wsl-containerlab). You should see a Containerlab app available in the start menu.
 
-[start-menu](../images/containerlab.PNG)
+![start-menu](../images/containerlab.PNG)
 
 
 ## Part 2: Infrastructure as Code Configuration
