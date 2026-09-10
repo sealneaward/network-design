@@ -16,19 +16,11 @@ Windows requires a Linux compatibility layer to run network operating system con
 If WSL is not installed or configured properly on your Windows machine (common on standard Windows 10 installations):
 
 1. Right-click your Windows Start menu and select **Terminal (Admin)** or **PowerShell (Admin)**.
-2. Check if WSL is installed by running:
-   ```powershell
-   wsl --list --verbose
-   ```
-3. If WSL is not installed or missing, run:
-   ```powershell
-   wsl --install
-   ```
-4. Explicitly enable WSL 2 as your default version:
+2. Explicitly enable WSL 2 as your default version:
    ```powershell
    wsl --set-default-version 2
    ```
-5. Install the Containerlab WSL file by following these instructions on [WSL-Containerlab](https://containerlab.dev/windows/#wsl-containerlab). You should see a Containerlab app available in the start menu.
+3. Install the Containerlab WSL file by following these instructions on [WSL-Containerlab](https://containerlab.dev/windows/#wsl-containerlab). You should see a Containerlab app available in the start menu.
 
 ![start-menu](../images/containerlab.PNG)
 
