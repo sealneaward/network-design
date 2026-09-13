@@ -135,7 +135,7 @@ sudo containerlab inspect -t dns.clab.yml
 
 1. Open a terminal into the `client` node:
    ```bash
-   docker exec -it clab-cdns-client sh
+   docker exec -it clab-dns-client sh
    ```
 
 2. Perform a DNS query using `nslookup` or `dig` targeted at `www.example.local`:
@@ -183,7 +183,7 @@ To inspect live traffic visually in Wireshark from WSL:
    ```
 4. Perform web requests on the client container in a second terminal tab:
    ```bash
-   docker exec cdns-client curl http://www.example.local
+   docker exec dns-client curl http://www.example.local
    ```
 5. Stop `tshark` (`Ctrl + C`) and inspect the generated PCAP file directly inside VS Code using the **vscode-packet-pane** extension or open it with desktop Wireshark.
 
