@@ -88,7 +88,7 @@ Create a file named `topology.yaml` that models your entire network configuratio
 
 To claim the extra **10% bonus marks**:
 
-1. Create a public GitHub repository titled `networking-lab-4hosts-2subnets`.
+1. Create a public GitHub repository.
 2. Push your `topology.yaml` file into the root of the repository.
 3. Create a well-structured `README.md` in the repository root that includes:
    - **Project Overview:** A short explanation of the lab and network architecture.
