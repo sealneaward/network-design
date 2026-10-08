@@ -68,7 +68,7 @@ Answer the following questions concisely and accurately based on networking prin
 3. **[10 Marks]** What specific host-level configuration parameter ensures that packets destined for an external network (`192.168.20.0/24`) are directed to the correct router interface? What happens on `host-a1` if this parameter is missing or misconfigured when attempting to ping `host-b1`?
 
 ### Router-Level Configuration
-4. **[10 Marks]** Detail the configuration required on both router interfaces connecting to Subnet A and Subnet B. Include interface IP addressing and subnet mask parameters.
+4. **[10 Marks]** Detail the configuration required on both router interfaces connecting to Subnet A and Subnet B. Include interface IP addressing and subnet mask parameters, example `192.164.11.1/20`.
 5. **[10 Marks]** Explain the concept of IP forwarding on the router. What configuration setting or service must be enabled on a Linux/Unix-based router to allow it to pass traffic between Subnet A and Subnet B?
 ---
 
