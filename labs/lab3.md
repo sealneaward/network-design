@@ -65,15 +65,11 @@ Answer the following questions concisely and accurately based on networking prin
 ### Host-Level Configuration
 1. **[5 Marks]** Specify the IP address, subnet mask, and default gateway settings for all 4 hosts (`host-a1`, `host-a2`, `host-b1`, `host-b2`).
 2. **[5 Marks]** Explain why `host-a1` can communicate directly with `host-a2` without relying on the router, but requires the router to communicate with `host-b1`. Describe the role of the subnet mask in this decision process.
-3. **[5 Marks]** What specific host-level configuration parameter ensures that packets destined for an external network (`192.168.20.0/24`) are directed to the correct router interface? What happens on `host-a1` if this parameter is missing or misconfigured when attempting to ping `host-b1`?
-4. **[5 Marks]** When `host-a1` initiates communication with `host-b1` for the first time, what MAC address does `host-a1` resolve via ARP? Explain why it resolves this specific MAC address instead of `host-b1`'s MAC address.
+3. **[10 Marks]** What specific host-level configuration parameter ensures that packets destined for an external network (`192.168.20.0/24`) are directed to the correct router interface? What happens on `host-a1` if this parameter is missing or misconfigured when attempting to ping `host-b1`?
 
 ### Router-Level Configuration
-5. **[5 Marks]** Detail the configuration required on both router interfaces connecting to Subnet A and Subnet B. Include interface IP addressing and subnet mask parameters.
-6. **[5 Marks]** Explain the concept of IP forwarding on the router. What configuration setting or service must be enabled on a Linux/Unix-based router to allow it to pass traffic between Subnet A and Subnet B?
-7. **[5 Marks]** Provide the explicit routing table entries required on the router to correctly route traffic between `192.168.10.0/24` and `192.168.20.0/24`. Specify destination subnets, network masks, interface associations, and flags if applicable.
-8. **[5 Marks]** Trace the complete ICMP Echo Request and Echo Reply packet flow between `host-a1` and `host-b1`. At each hop (Host A1 -> Router -> Host B1 -> Router -> Host A1), detail how the Source IP, Destination IP, Source MAC, and Destination MAC header fields change.
-
+4. **[10 Marks]** Detail the configuration required on both router interfaces connecting to Subnet A and Subnet B. Include interface IP addressing and subnet mask parameters.
+5. **[10 Marks]** Explain the concept of IP forwarding on the router. What configuration setting or service must be enabled on a Linux/Unix-based router to allow it to pass traffic between Subnet A and Subnet B?
 ---
 
 ## Part 2: Configuration & YAML Verification [Total: 60 Marks]
