@@ -54,7 +54,7 @@ To receive full credit for this assignment, you must submit the following:
 2. **Network Topology Configuration File (`topology.yaml`):** A valid YAML configuration file defining your network interfaces, IP addresses, subnets, and routing table setups for all 4 hosts and the router.
 3. **[BONUS - 10%] GitHub Repository Submission:**
    - Submit a direct link to a public/accessible GitHub repository containing your `topology.yaml`.
-   - The repository root **must** contain a `README.md` file properly documenting the setup instructions, architecture diagram (ASCII or image link), and instructions for executing or verifying the network setup.
+   - The repository root **must** contain a `README.md` file properly documenting the setup instructions, and the destroy instructions.
 
 ---
 
