@@ -124,6 +124,8 @@ Your terminal output must alternate sequentially between the two backend servers
 
 ## 6. Assessment & Marking Rubric
 
+Submit a public github repo URL with the lab yaml file and all of the neccessary config files in the correct folder based on how they are referenced in the yaml file.
+
 | Criteria | Weight | Description & Requirements |
 | :--- | :---: | :--- |
 | **Topology YAML Implementation** | **50%** | • Correctly defines all 4 nodes (`client`, `lb`, `web1`, `web2`) with appropriate container images (`alpine:latest`, `nginx:alpine`).<br>• Correctly specifies the 3 point-to-point links matching the network diagram.<br>• Utilizes node-level `exec` blocks to correctly assign IP addresses and bring up interfaces (`ip addr add` and `ip link set up`) across all nodes. |
