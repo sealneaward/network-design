@@ -193,26 +193,6 @@ When you enable IPv4 forwarding via `sysctl -w net.ipv4.ip_forward=1` on a route
 * **The IP Gateway** provides the destination address on the local network that hosts look to when stepping outside their subnet.
 * **IPv4 Forwarding** provides the router with the internal permission and capability to accept those packets on one interface, look them up, and push them out through another interface. Without forwarding, a router acts like a dead-end wall.
 
-### 2.4 Enabling Kernel Forwarding: `sysctl -w net.ipv4.ip_forward=1`
-
-By default, Linux network stacks act as **end hosts**—meaning if an IP packet arrives on `eth1` addressed to `192.168.20.2`, the Linux kernel drops it because the destination IP does not belong to any local interface on the system.
-
-Command added to the `router` execution list:
-
-```bash
-- sysctl -w net.ipv4.ip_forward=1
-```
-
-#### What happens behind the scenes:
-
-Setting `net.ipv4.ip_forward=1` changes the kernel behavior from an end host to an **IP router**:
-
-1. When a packet for `192.168.20.2` enters `eth1`, the kernel consults its routing table (`ip route`).
-
-2. It identifies `192.168.20.0/24` as a directly connected network on interface `eth2`.
-
-3. It rewrites the Layer 2 Ethernet headers (MAC source/destination) and forwards the packet out through `eth2`.
-
 ## 3. Switch Configuration: Is Action Needed?
 
 ### Step-by-Step Overview on the Switches
