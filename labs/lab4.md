@@ -175,7 +175,6 @@ You must create and submit a **Public GitHub Repository** containing:
 2. **Configuration Files:** The `config/` directory containing your `iptables.rules` and any other mounted configurations.
 3. **Repository README.md:**
    * Instructions on how to deploy (`sudo clab deploy -t lab.clab.yml`) and destroy (`sudo clab destroy -t lab.clab.yml`) the lab environment.
-   * Execution output or screenshots demonstrating all 5 verification tests passing.
 
 You will submit the public repository URL so it can be cloned and marked.
 
