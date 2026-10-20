@@ -151,14 +151,6 @@ If you choose to set up or modify the firewall rules manually via the command li
    * `firewall in`: Applies the firewall ruleset to incoming traffic entering interface `eth1` before routing decisions occur.
    * `name BLOCK_SSH`: Specifies `BLOCK_SSH` as the rule set to execute on this interface.
 
-4. **Commit and Save Configuration**
-   ```bash
-   commit
-   save
-   ```
-   * `commit`: Applies changes to the active running configuration.
-   * `save`: Persists configuration changes across reboot cycles.
-
 ---
 
 ## 5. Verification & Testing
