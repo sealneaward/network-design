@@ -1,12 +1,12 @@
-# VyOS Firewall Tutorial: Port 22 Restriction & Configuration Mounting
+# Linux Firewall Tutorial: Port 22 Restriction & Configuration Mounting
 
-This tutorial guides you through creating a Containerlab network lab with VyOS as a firewall router. In this scenario, we focus on mounting initial configuration files for both the web server and VyOS router, and configuring a firewall rule set that **allows all traffic across the network except SSH (TCP port 22)**.
+This tutorial guides you through creating a Containerlab network lab with an Alpine Linux firewall router using `iptables`. In this scenario, we focus on mounting initial configuration files for both the web server and router, setting up stateful packet filtering, overriding default management routes to prevent packet loss, and configuring a firewall rule set that **allows all traffic across the network except SSH (TCP port 22)**.
 
 ---
 
 ## 1. Architecture Diagram
 
-The architecture consists of an external WAN client, a central VyOS firewall router, and a DMZ network containing an Nginx web server.
+The architecture consists of an external WAN client, a central Alpine Linux firewall router, and a DMZ network containing an Nginx web server.
 
 ```mermaid
 graph TD
@@ -15,15 +15,15 @@ graph TD
     end
 
     subgraph FIREWALL ["Perimeter Router"]
-        VyOS["VyOS Firewall Router<br/>eth1: 172.16.1.1<br/>eth2: 192.168.10.1"]
+        Router["Alpine Linux Router<br/>eth1: 172.16.1.1<br/>eth2: 192.168.10.1"]
     end
 
     subgraph DMZ ["DMZ Zone - 192.168.10.0/24"]
         DMZ_Server["Nginx Web Server<br/>192.168.10.10"]
     end
 
-    WAN_Client <-->|eth1| VyOS
-    VyOS <-->|eth2| DMZ_Server
+    WAN_Client <-->|eth1| Router
+    Router <-->|eth2| DMZ_Server
 
     style FIREWALL fill:#f9f,stroke:#333,stroke-width:2px
     style WAN fill:#ffe6e6,stroke:#d9534f,stroke-width:1px
@@ -34,14 +34,14 @@ graph TD
 
 ## 2. Directory Structure & File Mount Setup
 
-To mount initial configurations into the VyOS firewall and Nginx web server, structure your workspace as follows before launching the lab:
+To mount initial configurations into the firewall router and Nginx web server, structure your workspace as follows before launching the lab:
 
 ```text
 .
 ├── config/
-│   ├── vyos.config         # Initial VyOS configuration script
+│   ├── iptables.rules      # Stateful iptables configuration rules
 │   └── index.html          # Custom HTML page for Nginx
-├── lab.clab.yml            # Containerlab topology file
+├── physical-firewall.yml   # Containerlab topology file
 └── tutorial.md             # Documentation
 ```
 
@@ -58,38 +58,50 @@ To mount initial configurations into the VyOS firewall and Nginx web server, str
    </html>
    ```
 
-2. **Create the initial VyOS configuration file (`config/vyos.config`):**
+2. **Create the `iptables` configuration file (`config/iptables.rules`):**
    ```text
-   set interfaces ethernet eth1 address 172.16.1.1/24
-   set interfaces ethernet eth2 address 192.168.10.1/24
-   
-   set firewall name BLOCK_SSH default-action accept
-   set firewall name BLOCK_SSH rule 10 action drop
-   set firewall name BLOCK_SSH rule 10 protocol tcp
-   set firewall name BLOCK_SSH rule 10 destination port 22
-   set firewall name BLOCK_SSH rule 10 description "Block incoming SSH access"
+   *filter
+   :INPUT ACCEPT [0:0]
+   :FORWARD ACCEPT [0:0]
+   :OUTPUT ACCEPT [0:0]
 
-   set interfaces ethernet eth1 firewall in name BLOCK_SSH
+   # 1. Allow established and related packets to return freely
+   -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+   -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT
+
+   # 2. Explicitly allow new traffic from WAN (eth1) to DMZ (eth2)
+   -A FORWARD -i eth1 -o eth2 -m state --state NEW -j ACCEPT
+
+   # 3. Block incoming SSH access on the WAN interface
+   -A INPUT -i eth1 -p tcp --dport 22 -j DROP
+   -A FORWARD -i eth1 -p tcp --dport 22 -j DROP
+
+   COMMIT
    ```
 
 ---
 
-## 3. Containerlab Topology File (`lab.clab.yml`)
+## 3. Containerlab Topology File (`physical-firewall.yml`)
 
-This YAML configuration defines nodes, IP settings, interfaces, and binds local host files into the container paths.
+This YAML configuration defines nodes, IP settings, interfaces, binds host files, and overrides default management routing on client nodes to eliminate packet loss.
 
 ```yaml
-name: vyos-port22-lab
+name: physical-firewall
 
 topology:
   nodes:
-    # VyOS Firewall Router
-    vyos:
-      kind: vyos
-      image: vyos/vyos:1.4-rolling-202310100317
-      cmd: /sbin/init
+    # Alpine Linux Firewall Router
+    router:
+      kind: linux
+      image: alpine:latest
       binds:
-        - config/vyos.config:/opt/vyatta/etc/config/scripts/vyos-postconfig-bootup.script
+        - config/iptables.rules:/etc/iptables.rules
+      exec:
+        - apk add --no-cache iptables
+        - sysctl -w net.ipv4.ip_forward=1
+        - ip addr add 172.16.1.1/24 dev eth1
+        - ip addr add 192.168.10.1/24 dev eth2
+        - iptables-restore < /etc/iptables.rules
 
     # Nginx DMZ Web Server
     dmz-server:
@@ -99,7 +111,8 @@ topology:
         - config/index.html:/usr/share/nginx/html/index.html:ro
       exec:
         - ip addr add 192.168.10.10/24 dev eth1
-        - ip route add default via 192.168.10.1 dev eth1
+        - ip route del default || true
+        - ip route add default via 192.168.10.1 dev eth1         
 
     # External WAN Client
     wan-client:
@@ -108,48 +121,40 @@ topology:
       exec:
         - apk add --no-cache curl netcat-openbsd
         - ip addr add 172.16.1.100/24 dev eth1
+        - ip route del default || true
         - ip route add default via 172.16.1.1 dev eth1
 
   links:
-    - endpoints: ["vyos:eth1", "wan-client:eth1"]
-    - endpoints: ["vyos:eth2", "dmz-server:eth1"]
+    - endpoints: ["router:eth1", "wan-client:eth1"]
+    - endpoints: ["router:eth2", "dmz-server:eth1"]
 ```
 
 ---
 
-## 4. VyOS Firewall Commands Explained
+## 4. Key Networking Fixes & Commands Explained
 
-If you choose to set up or modify the firewall rules manually via the command line, run `configure` and execute the commands below.
+### Preventing Packet Loss (Default Gateway Cleanup)
+By default, Docker/Containerlab attaches `eth0` to a management network bridge (`172.20.20.0/24`). Without deleting the management default route (`ip route del default || true`), containers route external traffic (like `192.168.10.10`) out `eth0` to the host system instead of `eth1` to the firewall router.
 
-### Command Breakdown
+### Understanding the Stateful `iptables` Rules
 
-1. **Set Default Policy to Accept All Traffic**
-   ```bash
-   set firewall name BLOCK_SSH default-action accept
+1. **Stateful Session Tracking (`ESTABLISHED,RELATED`)**
+   ```text
+   -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT
    ```
-   * `set firewall name BLOCK_SSH`: Creates or targets a firewall rule set named `BLOCK_SSH`.
-   * `default-action accept`: Instructs the firewall to permit any traffic that does not explicitly match an active rule in this set.
+   Ensures return packets for TCP streams or ICMP echoes originating from the DMZ or WAN client are automatically matched and forwarded.
 
-2. **Define Rule 10 to Drop TCP Port 22 (SSH)**
-   ```bash
-   set firewall name BLOCK_SSH rule 10 action drop
-   set firewall name BLOCK_SSH rule 10 protocol tcp
-   set firewall name BLOCK_SSH rule 10 destination port 22
-   set firewall name BLOCK_SSH rule 10 description "Block incoming SSH access"
+2. **Allowing `NEW` Connections Across Zones**
+   ```text
+   -A FORWARD -i eth1 -o eth2 -m state --state NEW -j ACCEPT
    ```
-   * `rule 10`: Designates the rule sequence index. Lower numbers are evaluated first.
-   * `action drop`: Silently discards packets matching this rule.
-   * `protocol tcp`: Restricts rule evaluation to Transmission Control Protocol (TCP) traffic.
-   * `destination port 22`: Targets traffic bound for port 22 (SSH).
-   * `description ...`: Adds documentation visible in `show firewall`.
+   Permits initial handshake packets (`SYN`) entering on `eth1` and routed out to `eth2` so that web traffic (HTTP) can initiate cleanly.
 
-3. **Bind Rule Set to the Interface**
-   ```bash
-   set interfaces ethernet eth1 firewall in name BLOCK_SSH
+3. **Restricting SSH (Port 22)**
+   ```text
+   -A FORWARD -i eth1 -p tcp --dport 22 -j DROP
    ```
-   * `set interfaces ethernet eth1`: Selects external interface `eth1`.
-   * `firewall in`: Applies the firewall ruleset to incoming traffic entering interface `eth1` before routing decisions occur.
-   * `name BLOCK_SSH`: Specifies `BLOCK_SSH` as the rule set to execute on this interface.
+   Explicitly drops any packet inbound from interface `eth1` attempting to initiate a TCP session on destination port 22.
 
 ---
 
@@ -157,7 +162,7 @@ If you choose to set up or modify the firewall rules manually via the command li
 
 Deploy the lab:
 ```bash
-sudo clab deploy -t lab.clab.yml
+sudo containerlab deploy -t physical-firewall.yml
 ```
 
 ### Test 1: Verify Port 80 (HTTP Traffic Allowed)
@@ -165,7 +170,7 @@ sudo clab deploy -t lab.clab.yml
 Execute an HTTP GET request from `wan-client` to `dmz-server`:
 
 ```bash
-docker exec -it clab-vyos-port22-lab-wan-client curl -s http://192.168.10.10
+docker exec -it clab-physical-firewall-wan-client curl -s http://192.168.10.10
 ```
 
 **Expected Result:**
@@ -178,7 +183,6 @@ docker exec -it clab-vyos-port22-lab-wan-client curl -s http://192.168.10.10
 </body>
 </html>
 ```
-*Why?* The default action for the `BLOCK_SSH` rule set is `accept`, and port 80 does not match rule 10.
 
 ---
 
@@ -187,27 +191,25 @@ docker exec -it clab-vyos-port22-lab-wan-client curl -s http://192.168.10.10
 Probe TCP port 22 from `wan-client` to `dmz-server`:
 
 ```bash
-docker exec -it clab-vyos-port22-lab-wan-client nc -zv -w 3 192.168.10.10 22
+docker exec -it clab-physical-firewall-wan-client nc -zv -w 3 192.168.10.10 22
 ```
 
 **Expected Result:**
 ```text
 nc: connect to 192.168.10.10 port 22 (tcp) timed out
 ```
-*Why?* Rule 10 explicitly drops incoming TCP packets destined for port 22.
 
 ---
 
-### Test 3: Verify ICMP Ping Traffic (Allowed)
+### Test 3: Verify ICMP Ping Traffic (Allowed without Loss)
 
 Ping the DMZ server from `wan-client`:
 
 ```bash
-docker exec -it clab-vyos-port22-lab-wan-client ping -c 3 192.168.10.10
+docker exec -it clab-physical-firewall-wan-client ping -c 3 192.168.10.10
 ```
 
 **Expected Result:**
 ```text
 3 packets transmitted, 3 received, 0% packet loss
 ```
-*Why?* ICMP traffic is not port 22 TCP traffic, so it passes under the default `accept` action.
