@@ -99,8 +99,8 @@ topology:
       exec:
         - apk add --no-cache iptables
         - sysctl -w net.ipv4.ip_forward=1
-        - ip addr add 172.16.1.1/24 dev eth1
-        - ip addr add 192.168.10.1/24 dev eth2
+        - ip addr replace 172.16.1.1/24 dev eth1
+        - ip addr replace 192.168.10.1/24 dev eth2
         - iptables-restore < /etc/iptables.rules
 
     # Nginx DMZ Web Server
@@ -111,8 +111,7 @@ topology:
         - config/index.html:/usr/share/nginx/html/index.html:ro
       exec:
         - ip addr add 192.168.10.10/24 dev eth1
-        - ip route del default || true
-        - ip route add default via 192.168.10.1 dev eth1         
+        - ip route replace default via 192.168.10.1 dev eth1        
 
     # External WAN Client
     wan-client:
@@ -121,8 +120,7 @@ topology:
       exec:
         - apk add --no-cache curl netcat-openbsd
         - ip addr add 172.16.1.100/24 dev eth1
-        - ip route del default || true
-        - ip route add default via 172.16.1.1 dev eth1
+        - ip route replace default via 172.16.1.1 dev eth1
 
   links:
     - endpoints: ["router:eth1", "wan-client:eth1"]
