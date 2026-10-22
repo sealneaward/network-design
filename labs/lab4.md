@@ -9,35 +9,39 @@ You are required to simulate a classic three-zone security architecture:
 * **LAN (Internal Office Network):** `10.1.1.0/24` — Trusted internal zone.
 * **DMZ (Demilitarized Zone):** `192.168.10.0/24` — Public-facing web services.
 * **WAN (Untrusted / External Internet):** `172.16.1.0/24` — External web clients and blacklisted threat actors.
-
 ```mermaid
 flowchart TD
     subgraph WAN ["WAN (Untrusted Zone - 172.16.1.0/24)"]
-        wan-client["wan-client<br/>172.16.1.100"]
-        wan-attacker["wan-attacker<br/>172.16.1.200"]
+        wan_client["WAN Client<br/>172.16.1.100/24<br/>GW: 172.16.1.1"]
+        wan_attacker["WAN Attacker / Blacklisted Host<br/>172.16.1.200/24<br/>GW: 172.16.1.2"]
     end
 
-    subgraph FW ["Perimeter Firewall"]
-        router["router<br/>(Alpine Firewall Router)"]
+    subgraph FIREWALL ["Perimeter Firewall Router"]
+        router["Alpine Linux Router<br/>(iptables)<br/><br/>eth1: 10.1.1.1/24<br/>eth2: 192.168.10.1/24<br/>eth3: 172.16.1.1/24<br/>eth4: 172.16.1.2/24"]
     end
 
     subgraph LAN ["LAN (Trusted Zone - 10.1.1.0/24)"]
-        lan-client["lan-client<br/>10.1.1.10"]
+        lan_client["LAN Client<br/>10.1.1.10/24<br/>GW: 10.1.1.1"]
     end
 
     subgraph DMZ ["DMZ (Public Services - 192.168.10.0/24)"]
-        dmz-server["dmz-server<br/>192.168.10.10"]
+        dmz_server["DMZ Web Server<br/>192.168.10.10/24<br/>GW: 192.168.10.1"]
     end
 
-    wan-client <-->|eth3| router
-    wan-attacker <-->|eth4| router
-    router <-->|eth1| lan-client
-    router <-->|eth2| dmz-server
+    lan_client ---|eth1 <--> eth1| router
+    dmz_server ---|eth1 <--> eth2| router
+    wan_client ---|eth1 <--> eth3| router
+    wan_attacker ---|eth1 <--> eth4| router
 
-    style FW fill:#f9f,stroke:#333,stroke-width:2px
-    style WAN fill:#ffe6e6,stroke:#d9534f,stroke-width:1px
-    style LAN fill:#e6ffe6,stroke:#5cb85c,stroke-width:1px
-    style DMZ fill:#fff0e6,stroke:#f0ad4e,stroke-width:1px
+    classDef firewall fill:#f9f,stroke:#333,stroke-width:2px;
+    classDef wan fill:#ffe6e6,stroke:#d9534f,stroke-width:1px;
+    classDef lan fill:#e6ffe6,stroke:#5cb85c,stroke-width:1px;
+    classDef dmz fill:#fff0e6,stroke:#f0ad4e,stroke-width:1px;
+
+    class FIREWALL firewall;
+    class WAN wan;
+    class LAN lan;
+    class DMZ dmz;
 ```
 
 ## 2. Lab Security Objectives
