@@ -225,9 +225,6 @@ To verify which rules are actively running on the router container, inspect the 
 ```bash
 # Check the main filter table (INPUT, FORWARD, OUTPUT) with packet/byte counters
 docker exec -it clab-physical-firewall-router iptables -L -v -n --line-numbers
-
-# Check the NAT table (if using SNAT/DNAT/MASQUERADE)
-docker exec -it clab-physical-firewall-router iptables -t nat -L -v -n --line-numbers
 ```
 
 **Key Parameters:**
@@ -256,36 +253,28 @@ docker exec -it clab-physical-firewall-router sh -c "iptables-restore < /etc/ipt
 
 ### Step 6.3: Manual CLI Configuration (Fallback Setup)
 
-If file mounting or automated restoration fails, you can manually build the firewall policy via direct CLI commands using `docker exec`:
+If file mounting or automated restoration fails, you can manually build the firewall policy via exec commands in the lab yaml file:
 
-```bash
-# 1. Enable IPv4 packet forwarding in kernel
-docker exec -it clab-physical-firewall-router sysctl -w net.ipv4.ip_forward=1
-
-# 2. Flush existing rules and custom chains across all tables
-docker exec -it clab-physical-firewall-router iptables -F
-docker exec -it clab-physical-firewall-router iptables -t nat -F
-docker exec -it clab-physical-firewall-router iptables -X
-
-# 3. Set default chain policies
-docker exec -it clab-physical-firewall-router iptables -P INPUT ACCEPT
-docker exec -it clab-physical-firewall-router iptables -P FORWARD ACCEPT
-docker exec -it clab-physical-firewall-router iptables -P OUTPUT ACCEPT
-
-# 4. Allow stateful established and related traffic
-docker exec -it clab-physical-firewall-router iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
-docker exec -it clab-physical-firewall-router iptables -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT
-
-# 5. Allow new connections from WAN (eth1) to DMZ (eth2)
-docker exec -it clab-physical-firewall-router iptables -A FORWARD -i eth1 -o eth2 -m state --state NEW -j ACCEPT
-
-# 6. Block incoming SSH traffic on port 22 on WAN interface
-docker exec -it clab-physical-firewall-router iptables -A INPUT -i eth1 -p tcp --dport 22 -j DROP
-docker exec -it clab-physical-firewall-router iptables -A FORWARD -i eth1 -p tcp --dport 22 -j DROP
-```
-
-Once manually configured, save the live rules to your rule file:
-
-```bash
-docker exec -it clab-physical-firewall-router sh -c "iptables-save > /etc/iptables.rules"
+```yaml
+    # Alpine Linux Firewall Router with inline manual CLI iptables configuration
+    router:
+      kind: linux
+      image: alpine:latest
+      exec:
+        - apk add --no-cache iptables
+        - sysctl -w net.ipv4.ip_forward=1
+        - ip addr replace 172.16.1.1/24 dev eth1
+        - ip addr replace 192.168.10.1/24 dev eth2
+        # Manual CLI rule application (fallback setup)
+        - iptables -F
+        - iptables -t nat -F
+        - iptables -X
+        - iptables -P INPUT ACCEPT
+        - iptables -P FORWARD ACCEPT
+        - iptables -P OUTPUT ACCEPT
+        - iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+        - iptables -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT
+        - iptables -A FORWARD -i eth1 -o eth2 -m state --state NEW -j ACCEPT
+        - iptables -A INPUT -i eth1 -p tcp --dport 22 -j DROP
+        - iptables -A FORWARD -i eth1 -p tcp --dport 22 -j DROP
 ```
