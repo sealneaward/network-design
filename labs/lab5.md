@@ -111,35 +111,27 @@ Execute the following pre-populated `curl` commands from your `attacker` contain
 ### Test 1: Legitimate Traffic (`200 OK`)
 Verify that standard traffic reaches the backend PHP application successfully through the WAF.
 ```bash
-docker exec -it clab-modsec-php-lab-attacker curl -i "http://10.0.1.3/index.php?page=home"
+docker exec -it clab-modsec-php-lab-attacker curl -i -X GET "http://10.0.1.3:8080/index.php?page=home"
 ```
 * **Expected Output:** `HTTP/1.1 200 OK`
-* **Actual Output Log:**
-```
-# Paste command and output here
-```
 
-### Test 2: Malicious PHP Payload (`403 Forbidden`)
-Test your custom ModSecurity rules by injecting a simulated shell execution string or parameter exploit vector.
+### Test 2: Non-Canonical Multipart Content-Type (`403 Forbidden`)
+Test your custom ModSecurity rules by submitting a simulated multi part content type post request.
 ```bash
-docker exec -it clab-modsec-php-lab-attacker curl -i "http://10.0.1.3/index.php?cmd=system($_GET['id'])"
+docker exec -it clab-modsec-php-lab-attacker curl -i -X POST "http://10.0.1.3:8080/" \
+     -H "Content-Type: multipart/form-data,boundary=something" \
+     -F "test=value"
 ```
 * **Expected Output:** `HTTP/1.1 403 Forbidden`
-* **Actual Output Log:**
-```
-# Paste command and output here
-```
 
-### Test 3: Unauthorized User-Agent Block (`403 Forbidden`)
-Verify that automated scanning headers or unauthorized client signatures are blocked by your rule set.
+### Test 3: PHP Session Upload Progress Field (`403 Forbidden`)
+Verify that php session upload parameters are blocked by your rule set.
 ```bash
-docker exec -it clab-modsec-php-lab-attacker curl -i -s -H "User-Agent: php-exploit-framework" "http://10.0.1.3/"
+docker exec -it clab-modsec-php-lab-attacker curl -i -X POST "http://10.0.1.3:8080/" \
+     -F "php_session_upload_progress=exploit_payload"
 ```
 * **Expected Output:** `HTTP/1.1 403 Forbidden`
-* **Actual Output Log:**
-```
-# Paste command and output here
-```
+
 
 ---
 
@@ -151,6 +143,6 @@ This lab is graded out of a total of **100 points**. Work is evaluated based on 
 | :--- | :--- | :---: | :---: |
 | **GitHub Setup & Repository Structure** | • Clean repository structure with a valid `lab.clab.yml` topology file.<br>• Properly documented Dockerfile definitions for custom PHP and WAF images.<br>• Inclusion of custom rule files under the `rules/` directory. | **25%** | **25 pts** |
 | **Test Outcome 1: Legitimate Traffic** | • Normal traffic (`index.php?page=home`) successfully passes through the WAF proxy to the backend container.<br>• Returns an HTTP `200 OK` response code. | **25%** | **25 pts** |
-| **Test Outcome 2: PHP Payload Detection** | • Custom ModSecurity rules successfully intercept and inspect query arguments.<br>• Malicious execution parameters (`cmd=system(...)`) trigger a block returning an HTTP `403 Forbidden` response. | **25%** | **25 pts** |
-| **Test Outcome 3: Header / Client Enforcement** | • Request header inspection rules correctly identify and reject forbidden tool signatures or user-agents.<br>• Returns an HTTP `403 Forbidden` response code. | **25%** | **25 pts** |
+| **Test Outcome 2:  Non-Canonical Multipart Content-Type** | • Custom ModSecurity rules successfully intercept and inspect query arguments.<br>• Malicious execution parameters trigger a block returning an HTTP `403 Forbidden` response. | **25%** | **25 pts** |
+| **Test Outcome 3: Header / Client Enforcement** | • Custom ModSecurity rules successfully intercept and inspect query arguments.<br>• Malicious execution parameters trigger a block returning an HTTP `403 Forbidden` response code. | **25%** | **25 pts** |
 | **Total** | | **100%** | **100 pts** |
