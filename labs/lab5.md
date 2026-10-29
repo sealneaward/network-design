@@ -97,8 +97,9 @@ RUN apt-get update && apt-get install -y iproute2 && rm -rf /var/lib/apt/lists/*
 Provide your custom rule definitions targeting php2shell RCE vectors, suspicious parameters, and malicious user-agents:
 
 ```apache
-# Enable ModSecurity Engine
+# Enable ModSecurity Engine and Allow Request Body Access
 SecRuleEngine On
+SecRequestBodyAccess On
 
 # TODO: Add your custom rules below
 ```
