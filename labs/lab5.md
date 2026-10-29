@@ -107,7 +107,7 @@ SecRequestBodyAccess On
 ---
 
 ## 4. Lab Validation & Testing Log
-Execute the following pre-populated `curl` commands from your `attacker` container and record or paste the corresponding terminal output.
+Execute the following pre-populated `curl` commands from your `attacker` container and ensure they match the response codes expected.
 
 ### Test 1: Legitimate Traffic (`200 OK`)
 Verify that standard traffic reaches the backend PHP application successfully through the WAF.
