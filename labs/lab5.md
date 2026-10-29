@@ -26,6 +26,7 @@ Ensure your local repository matches the following structure before submitting:
 
 ```
 modsec-php-lab/
+├── README.md
 ├── lab.clab.yml
 ├── images/
 │   ├── php/
