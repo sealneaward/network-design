@@ -11,7 +11,7 @@ Use the diagram below to configure your Containerlab node interfaces, bridge att
 
 ```mermaid
 graph TD
-    subgraph Containerlab Switched Network (10.0.1.0/24)
+    subgraph sg1 ["Containerlab Switched Network (10.0.1.0/24)"]
         SW["Alpine Switch: sw0<br/>Bridge: br0"]
         A["Attacker Node<br/>eth1: 10.0.1.1/24"] ---|eth1 - eth1| SW
         W["ModSecurity WAF<br/>eth1: 10.0.1.3/24"] ---|eth1 - eth2| SW
