@@ -62,11 +62,15 @@ topology:
     phpserver:
       kind: linux
       image: custom-php:latest
+      # No need to configure ports for PHP containers, this will run a web server on port 80
       # TODO: Configure backend PHP container IP (10.0.1.2/24)
 
     waf:
       kind: linux
       image: custom-waf:latest
+      env:
+        BACKEND: "http://10.0.1.2:80"
+        MODSEC_RULE_ENGINE: "On"
       # TODO: Configure WAF proxy IP (10.0.1.3/24), environment variables, and rule binds
   
   links:
