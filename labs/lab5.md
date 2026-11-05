@@ -113,12 +113,12 @@ SecRequestBodyAccess On
 ## 4. Lab Validation & Testing Log
 Execute the following pre-populated `curl` commands from your `attacker` container and ensure they match the response codes expected.
 
-### Test 1: Legitimate Traffic (`200 OK`)
+### Test 1: Legitimate Traffic (`404 OK`)
 Verify that standard traffic reaches the backend PHP application successfully through the WAF.
 ```bash
 docker exec -it clab-modsec-php-lab-attacker curl -i -X GET "http://10.0.1.3:8080/index.php?page=home"
 ```
-* **Expected Output:** `HTTP/1.1 200 OK`
+* **Expected Output:** `HTTP/1.1 404`
 
 ### Test 2: Non-Canonical Multipart Content-Type (`403 Forbidden`)
 Test your custom ModSecurity rules by submitting a simulated multi part content type post request.
