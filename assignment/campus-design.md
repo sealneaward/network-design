@@ -310,7 +310,7 @@ You must host your completed assignment in a **Public GitHub Repository** contai
 
 1. Valid `lab.clab.yml` topology definition file.
 2. Complete Dockerfiles under `images/juiceshop/` and `images/modsec/`.
-3. Complete configuration files under `config/iptables.rules` and `config/modsec-custom.conf`.
+3. Complete configuration files under `config/iptables.rules` (or defined in the container `exec` in the `yml` file) and `config/modsec-custom.conf`.
 4. A comprehensive `README.md` file providing:
    * Prerequisites and local Docker image build instructions.
    * Containerlab deployment (`sudo clab deploy -t lab.clab.yml`) and destroy (`sudo clab destroy -t lab.clab.yml`) commands.
