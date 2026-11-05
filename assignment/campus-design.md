@@ -6,8 +6,6 @@ In this comprehensive lab assignment, you will synthesize core enterprise networ
 
 You will design, configure, and secure a 4-subnet campus environment connecting Students, Faculty, IT Admin staff, and Centralized Services. The network requires both **Layer 3/4 Packet Filtering Firewalls** on the central router to enforce strict inter-subnet access policies and a **Layer 7 Web Application Firewall (WAF)** to defend vulnerable application services against web exploits.
 
----
-
 ## 1. Campus Network Architecture & Topology
 
 The campus network consists of four distinct subnets connected through a central Alpine Linux Gateway / Firewall router:
@@ -32,23 +30,22 @@ flowchart TD
     end
 
     subgraph GATEWAY ["Central Perimeter Router / Firewall"]
-        router["Alpine Router (iptables)<br/><br/>eth1: 10.10.10.1/24 (Student)<br/>eth2: 10.10.20.1/24 (Faculty)<br/>eth3: 10.10.30.1/24 (Admin)<br/>eth4: 10.10.40.1/24 (Services)"]
+        router["Alpine Router (iptables)<br/><br/>eth1: 10.10.10.1/24 (Student)<br/>eth2: 10.10.20.1/24 (Faculty)<br/>eth3: 10.10.30.1/24 (Admin)<br/>eth4: 10.10.40.1/24 (WAF)<br/>eth5: 10.10.40.1/24 (Juice Shop)<br/>eth6: 10.10.40.1/24 (Postgres)"]
     end
 
     subgraph SERVICES ["Services Subnet (10.10.40.0/24)"]
         direction TB
         waf["ModSecurity WAF Proxy<br/>10.10.40.80/24<br/>GW: 10.10.40.1"]
-        juiceshop["OWASP Juice Shop<br/>(Bulletin App)<br/>10.10.40.81/24"]
+        juiceshop["OWASP Juice Shop<br/>(Bulletin App)<br/>10.10.40.81/24<br/>GW: 10.10.40.1"]
         postgres["PostgreSQL Database<br/>(Grading DB)<br/>10.10.40.100/24<br/>GW: 10.10.40.1"]
-
-        waf ---|Internal Link| juiceshop
     end
 
     student_node ---|eth1 <--> eth1| router
     faculty_node ---|eth1 <--> eth2| router
     admin_node ---|eth1 <--> eth3| router
     router ---|eth4 <--> eth1| waf
-    router ---|eth4 <--> eth1| postgres
+    router ---|eth5 <--> eth1| juiceshop
+    router ---|eth6 <--> eth1| postgres
 
     classDef admin fill:#ffe6e6,stroke:#d9534f,stroke-width:2px;
     classDef faculty fill:#fff0e6,stroke:#f0ad4e,stroke-width:1px;
@@ -63,29 +60,32 @@ flowchart TD
     class GATEWAY router;
 ```
 
----
-
 ## 2. Lab Objectives & Security Policies
 
 ### Policy 1: Gateway Routing & Inter-Subnet Stateful Filtering
-* The central router must enable kernel IP forwarding (`sysctl -w net.ipv4.ip_forward=1`) and serve as default gateway (`.1`) for each subnet.
+
+* The central router must enable kernel IP forwarding (`sysctl -w net.ipv4.ip_forward=1`) and serve as the default gateway (`.1`) across all interfaces.
 * Enforce stateful packet tracking (`ESTABLISHED,RELATED`) on `iptables` to allow return traffic automatically for established outbound sessions.
 * Enforce a default `DROP` policy on the `FORWARD` filter chain.
 
 ### Policy 2: Admin SSH Privilege Restrictions
+
 * **Only hosts residing on the IT Admin Subnet (`10.10.30.0/24`)** are permitted to initiate SSH connections (`tcp/22`) to devices/servers in any other subnet.
 * All SSH traffic initiated from Student, Faculty, or Services subnets must be blocked and dropped by the central router firewall.
 
 ### Policy 3: Campus Web & Database Access Control
+
 1. **School Bulletin App (OWASP Juice Shop):**
    * Must be accessible via HTTP (`tcp/80`) through the **ModSecurity WAF Proxy** (`10.10.40.80`) by **Students, Faculty, and IT Admin staff**.
-   * Direct user connections from client subnets to the backend container directly (`10.10.40.81`) must be prevented or isolated; all HTTP user traffic must transit through the WAF.
+   * Direct user connections from client subnets to the backend container directly (`10.10.40.81`) must be prevented or isolated by firewall rules; all user HTTP traffic must transit through the WAF. The WAF routes backend traffic via its environment configuration (`BACKEND="http://10.10.40.81:3000"`).
+
 2. **Grading Database (PostgreSQL):**
-   * Accessible over PostgreSQL port (`tcp/5432`) on target IP `10.10.40.100`. Credentials set to `postgres/postgres`.
+   * Accessible over PostgreSQL port (`tcp/5432`) on target IP `10.10.40.100`. Database admin username must be set to `postgres` and admin password to `postgres`.
    * **Only Faculty (`10.10.20.0/24`) and IT Admin (`10.10.30.0/24`)** subnets may initiate connections to port 5432.
    * Access attempts from the Student subnet to the grading database must be dropped by the network firewall.
 
 ### Policy 4: Layer 7 WAF Protection Against SQL Injection
+
 * The ModSecurity reverse proxy (`10.10.40.80`) front-ends the bulletin app.
 * Standard legitimate web access through the WAF must yield an HTTP `200 OK` response.
 * Requests containing SQL Injection attack vectors targeting the application (e.g., `' OR '1'='1`) must be intercepted by custom ModSecurity rules and return `403 Forbidden`.
@@ -112,7 +112,7 @@ flowchart TD
 
 ### Pre-requisite: Local Image Builds
 
-Because lightweight upstream application containers often omit networking utilities required by Containerlab for static IP/gateway configuration, you **must build custom local container images** prior to deploying the topology.
+Because lightweight application containers omit networking utilities required by Containerlab for static IP/gateway configuration, you **must build custom local container images** prior to deploying the topology.
 
 #### 1. Build Custom Juice Shop Image (`images/juiceshop/Dockerfile`)
 
@@ -187,6 +187,7 @@ docker build -t custom-waf:latest ./images/modsec
 
 # --- 3. BULLETIN APP ACCESS CONTROL ---
 # Allow Student, Faculty, and Admin to access WAF Proxy (10.10.40.80:80)
+# Block direct client access to Juice Shop backend (10.10.40.81)
 
 
 # --- 4. GRADING DATABASE ACCESS CONTROL ---
@@ -210,7 +211,7 @@ topology:
       exec:
         - apk add --no-cache iproute2 iptables
         - sysctl -w net.ipv4.ip_forward=1
-        # TODO: Add interface IP addresses and load iptables.rules
+        # TODO: Configure interface IP addresses and apply firewall rules
 
     # 2. Subnet Clients
     student-client:
@@ -250,7 +251,7 @@ topology:
       kind: linux
       image: custom-juiceshop:latest
       exec:
-        # TODO: Assign IP (10.10.40.81/24)
+        # TODO: Assign IP (10.10.40.81/24) and set default gateway (10.10.40.1)
 
     postgres-db:
       kind: linux
@@ -263,7 +264,12 @@ topology:
         # TODO: Assign IP (10.10.40.100/24) and set default gateway (10.10.40.1)
 
   links:
-    # TODO: Define interface connections between nodes matching the topology map
+    - endpoints: ["student-client:eth1", "router:eth1"]
+    - endpoints: ["faculty-client:eth1", "router:eth2"]
+    - endpoints: ["admin-client:eth1", "router:eth3"]
+    - endpoints: ["waf-proxy:eth1", "router:eth4"]
+    - endpoints: ["juiceshop-app:eth1", "router:eth5"]
+    - endpoints: ["postgres-db:eth1", "router:eth6"]
 ```
 
 ---
@@ -302,9 +308,9 @@ Your topology must successfully run and pass all six of the following test cases
 
 You must host your completed assignment in a **Public GitHub Repository** containing:
 
-1. Valid `lab.clab.yml` topology definition.
+1. Valid `lab.clab.yml` topology definition file.
 2. Complete Dockerfiles under `images/juiceshop/` and `images/modsec/`.
-3. Complete configuration files under `config/iptables.rules` (or use individual commands like [here](https://github.com/sealneaward/network-design/blob/main/tutorials/physical-firewalls.md#step-63-manual-cli-configuration-fallback-setup)) and `config/modsec-custom.conf`.
+3. Complete configuration files under `config/iptables.rules` and `config/modsec-custom.conf`.
 4. A comprehensive `README.md` file providing:
    * Prerequisites and local Docker image build instructions.
    * Containerlab deployment (`sudo clab deploy -t lab.clab.yml`) and destroy (`sudo clab destroy -t lab.clab.yml`) commands.
@@ -318,11 +324,8 @@ This lab assignment is graded out of **100 total points**:
 
 | Category | Description & Criteria | Weight | Points |
 | :--- | :--- | :---: | :---: |
-| **Repository Structure, Documentation & Execution** | • The GitHub repository is publicly accessible and properly structured.<br>• Custom Dockerfiles for Juice Shop and ModSecurity build cleanly.<br>• `README.md` documents deployment/destroy commands and prerequisites clearly.<br>• The `lab.clab.yml` topology builds and deploys via Containerlab without syntax or execution errors. | **25%** | **25 pts** |
-| **Test 1: Bulletin Web Access** | Student node reaches WAF (`10.10.40.80:80`) and receives HTTP `200 OK`. | **12.5%** | **12.5 pts** |
-| **Test 2: Layer 7 WAF Defense** | SQLi payload sent to WAF triggers custom rule and yields HTTP `403 Forbidden`. | **12.5%** | **12.5 pts** |
-| **Test 3: Faculty DB Access** | Faculty host successfully connects to PostgreSQL DB (`10.10.40.100:5432`). | **12.5%** | **12.5 pts** |
-| **Test 4: Student DB Restriction** | Student host attempt to reach PostgreSQL DB (`10.10.40.100:5432`) is dropped by firewall. | **12.5%** | **12.5 pts** |
-| **Test 5: IT Admin SSH Privilege** | IT Admin host (`10.10.30.10`) successfully connects across subnets via SSH (`tcp/22`). | **12.5%** | **12.5 pts** |
-| **Test 6: SSH Restriction Enforcement** | Non-admin host SSH attempts to other subnets are dropped by firewall. | **12.5%** | **12.5 pts** |
+| **Repository Structure & Documentation** | • Valid `lab.clab.yml` syntax without execution errors.<br>• Clean repository layout matching the specified directory structure.<br>• Comprehensive `README.md` containing image build steps, deployment/cleanup instructions, and clear test steps. | **25%** | **25 pts** |
+| **Test 1 & 2: WAF & Web Security** | • Legitimate web traffic passes through WAF to backend with HTTP `200 OK`.<br>• SQL Injection payload blocked by custom ModSecurity rules returning HTTP `403 Forbidden`. | **25%** | **25 pts** |
+| **Test 3 & 4: Database Access Control** | • Faculty and IT Admin subnets can communicate with PostgreSQL on port `5432`.<br>• Student subnet access attempts to port `5432` are dropped by `iptables`. | **25%** | **25 pts** |
+| **Test 5 & 6: SSH Management Control** | • Only IT Admin subnet can reach devices over SSH port `22`.<br>• SSH attempts from all non-admin subnets are blocked by `iptables`. | **25%** | **25 pts** |
 | **Total** | | **100%** | **100 pts** |
