@@ -1,14 +1,14 @@
-# Class Assignment: Enterprise Campus Network Security & Application Defence
+# Lab Assignment: Enterprise Campus Network Security & Application Defense
 
 ## Objective
 
-In this comprehensive lab assignment, you will synthesize core enterprise network design concepts into a single campus simulation using **Containerlab**, **Alpine Linux**, **`iptables`**, and **OWASP ModSecurity WAF**.
+In this comprehensive lab assignment, you will synthesize core enterprise network design concepts into a single campus simulation using **Containerlab**, **Alpine Linux switches**, **`iptables`**, and **OWASP ModSecurity WAF**.
 
 You will design, configure, and secure a 4-subnet campus environment connecting Students, Faculty, IT Admin staff, and Centralized Services. The network requires both **Layer 3/4 Packet Filtering Firewalls** on the central router to enforce strict inter-subnet access policies and a **Layer 7 Web Application Firewall (WAF)** to defend vulnerable application services against web exploits.
 
 ## 1. Campus Network Architecture & Topology
 
-The campus network consists of four distinct subnets connected through a central Alpine Linux Gateway / Firewall router, utilizing Alpine Linux virtual switches per subnet to maintain independent gateway interfaces:
+The campus network consists of four distinct subnets connected through a central Alpine Linux Gateway / Firewall router, utilizing dedicated **Alpine Linux Layer 2 switch containers** per subnet to maintain independent gateway interfaces (`.1`):
 
 1. **Student Subnet (`10.10.10.0/24`):** General student population client zone.
 2. **Faculty Subnet (`10.10.20.0/24`):** Academic staff client zone.
@@ -35,24 +35,24 @@ flowchart TD
 
     subgraph SERVICES ["Services Subnet (10.10.40.0/24)"]
         direction TB
-        waf["ModSecurity WAF Proxy<br/>10.10.40.80/24<br/>GW: 10.10.40.1"]
-        juiceshop["OWASP Juice Shop<br/>(Bulletin App)<br/>10.10.40.81/24<br/>GW: 10.10.40.1"]
-        postgres["PostgreSQL Database<br/>(Grading DB)<br/>10.10.40.100/24<br/>GW: 10.10.40.1"]
+        waf["ModSecurity WAF Proxy<br/>10.10.40.80:8080<br/>GW: 10.10.40.1"]
+        juiceshop["OWASP Juice Shop<br/>(Bulletin App)<br/>10.10.40.81:3000<br/>GW: 10.10.40.1"]
+        postgres["PostgreSQL Database<br/>(Grading DB)<br/>10.10.40.100:5432<br/>GW: 10.10.40.1"]
     end
 
-    student_node ---|eth1 <--> sw-student| sw_student((Student Switch))
-    sw_student ---|router:eth1| router
+    student_node ---|eth1 <--> eth1| sw_student["Alpine Switch (sw-student)"]
+    sw_student ---|eth2 <--> eth1| router
     
-    faculty_node ---|eth1 <--> sw-faculty| sw_faculty((Faculty Switch))
-    sw_faculty ---|router:eth2| router
+    faculty_node ---|eth1 <--> eth1| sw_faculty["Alpine Switch (sw-faculty)"]
+    sw_faculty ---|eth2 <--> eth2| router
     
-    admin_node ---|eth1 <--> sw-admin| sw_admin((Admin Switch))
-    sw_admin ---|router:eth3| router
+    admin_node ---|eth1 <--> eth1| sw_admin["Alpine Switch (sw-admin)"]
+    sw_admin ---|eth2 <--> eth3| router
     
-    waf ---|eth1 <--> sw-services| sw_services((Services Switch))
-    juiceshop ---|eth1 <--> sw-services| sw_services
-    postgres ---|eth1 <--> sw-services| sw_services
-    sw_services ---|router:eth4| router
+    waf ---|eth1 <--> eth1| sw_services["Alpine Switch (sw-services)"]
+    juiceshop ---|eth1 <--> eth2| sw_services
+    postgres ---|eth1 <--> eth3| sw_services
+    sw_services ---|eth4 <--> eth4| router
 
     classDef admin fill:#ffe6e6,stroke:#d9534f,stroke-width:2px;
     classDef faculty fill:#fff0e6,stroke:#f0ad4e,stroke-width:1px;
@@ -93,7 +93,7 @@ flowchart TD
 
 ### Policy 4: Layer 7 WAF Protection Against SQL Injection
 
-* The ModSecurity reverse proxy (`10.10.40.80`) front-ends the bulletin app.
+* The ModSecurity reverse proxy (`10.10.40.80:8080`) front-ends the bulletin app.
 * Standard legitimate web access through the WAF must yield an HTTP `200 OK` response.
 * Requests containing SQL Injection attack vectors targeting the application (e.g., `' OR '1'='1`) must be intercepted by custom ModSecurity rules and return `403 Forbidden`.
 
@@ -108,7 +108,7 @@ flowchart TD
 ├── README.md                   # Lab setup and execution documentation
 ├── lab.clab.yml                # Master Containerlab topology definition file
 ├── config/
-│   ├── iptables.rules          # Student-configured network firewall rules
+│   ├── iptables.rules          # Student-configured network firewall rules (optional if using router exec)
 │   └── modsec-custom.conf      # Student-configured Layer 7 WAF rules
 └── images/
     ├── juiceshop/
@@ -173,38 +173,15 @@ docker build -t custom-waf:latest ./images/modsec
 
 ## 4. Starter Templates
 
-### Starter: `config/iptables.rules`
+### Starter: `config/modsec-custom.conf`
 
 ```text
-*filter
-:INPUT DROP [0:0]
-:FORWARD DROP [0:0]
-:OUTPUT ACCEPT [0:0]
-
 # =======================================================
-# TODO: IMPLEMENT YOUR IPTABLES RULES BELOW
+# TODO: IMPLEMENT YOUR CUSTOM MODSECURITY RULES BELOW
 # =======================================================
-
-# --- 1. ALLOW ESTABLISHED & RELATED TRAFFIC ---
-
-
-# --- 2. SSH MANAGEMENT ACCESS CONTROL ---
-# Allow ONLY 10.10.30.0/24 (Admin) to initiate SSH anywhere
-
-
-# --- 3. BULLETIN APP ACCESS CONTROL ---
-# Allow Student, Faculty, and Admin to access WAF Proxy (10.10.40.80:8080)
-# Block direct client access to Juice Shop backend (10.10.40.81)
-
-
-# --- 4. GRADING DATABASE ACCESS CONTROL ---
-# Allow Faculty and Admin to access PostgreSQL DB (10.10.40.100:5432)
-
-
-COMMIT
 ```
 
-### Starter: `lab.clab.yml` (Using Switch Bridges per Subnet)
+### Starter: `lab.clab.yml`
 
 ```yaml
 name: campus-network-security
@@ -216,60 +193,52 @@ topology:
       kind: linux
       image: alpine:latest
       exec:
-        - apk add --no-cache iproute2 iptables
-        - sysctl -w net.ipv4.ip_forward=1
-        
-        # Configure Gateway IP Addresses per Interface
-        - ip addr replace 10.10.10.1/24 dev eth1
-        - ip addr replace 10.10.20.1/24 dev eth2
-        - ip addr replace 10.10.30.1/24 dev eth3
-        - ip addr replace 10.10.40.1/24 dev eth4
-        
-        # Bring router interfaces up
-        - ip link set dev eth1 up
-        - ip link set dev eth2 up
-        - ip link set dev eth3 up
-        - ip link set dev eth4 up
+        - apk add --no-cache iptables
+        # TODO: Configure router interfaces (eth1-eth4), ipv4 forwarding, gateway IPs (.1), and iptables filter policies
 
-        # TODO: Apply iptables security policies and rules
-
-    # 2. Subnet Switches (Linux bridge kind to host multiple hosts per subnet)
+    # 2. Alpine Linux Layer-2 Switches per Subnet
     sw-student:
-      kind: bridge
+      kind: linux
+      image: alpine:latest
+      exec:
+        # TODO: Configure student subnet bridge
+
     sw-faculty:
-      kind: bridge
+      kind: linux
+      image: alpine:latest
+      exec:
+        # TODO: Configure faculty subnet bridge
+
     sw-admin:
-      kind: bridge
+      kind: linux
+      image: alpine:latest
+      exec:
+        # TODO: Configure admin subnet bridge
+
     sw-services:
-      kind: bridge
+      kind: linux
+      image: alpine:latest
+      exec:
+        # TODO: Configure services subnet bridge
 
     # 3. Subnet Clients
     student-client:
       kind: linux
       image: alpine:latest
       exec:
-        - apk add --no-cache curl netcat-openbsd iproute2
-        - ip addr add 10.10.10.10/24 dev eth1
-        - ip route replace default via 10.10.10.1 dev eth1
-        - ip link set dev eth1 up
+        # TODO: Assign IP (10.10.10.10/24), set default gateway (10.10.10.1), and install tools
 
     faculty-client:
       kind: linux
       image: alpine:latest
       exec:
-        - apk add --no-cache curl netcat-openbsd iproute2
-        - ip addr add 10.10.20.10/24 dev eth1
-        - ip route replace default via 10.10.20.1 dev eth1
-        - ip link set dev eth1 up
+        # TODO: Assign IP (10.10.20.10/24), set default gateway (10.10.20.1), and install tools
 
     admin-client:
       kind: linux
       image: alpine:latest
       exec:
-        - apk add --no-cache curl netcat-openbsd iproute2
-        - ip addr add 10.10.30.10/24 dev eth1
-        - ip route replace default via 10.10.30.1 dev eth1
-        - ip link set dev eth1 up
+        # TODO: Assign IP (10.10.30.10/24), set default gateway (10.10.30.1), and install tools
 
     # 4. Centralized Services Subnet
     waf-proxy:
@@ -281,17 +250,13 @@ topology:
       binds:
         - config/modsec-custom.conf:/etc/modsecurity.d/owasp-crs/rules/RESPONSE-999-CUSTOM.conf:ro
       exec:
-        - ip addr add 10.10.40.80/24 dev eth1
-        - ip route replace default via 10.10.40.1 dev eth1
-        - ip link set dev eth1 up
+        # TODO: Assign IP (10.10.40.80/24) and default gateway (10.10.40.1)
 
     juiceshop-app:
       kind: linux
       image: custom-juiceshop:latest
       exec:
-        - ip addr add 10.10.40.81/24 dev eth1
-        - ip route replace default via 10.10.40.1 dev eth1
-        - ip link set dev eth1 up
+        # TODO: Assign IP (10.10.40.81/24) and default gateway (10.10.40.1)
 
     postgres-db:
       kind: linux
@@ -301,29 +266,11 @@ topology:
         POSTGRES_PASSWORD: postgres
         POSTGRES_DB: grading_db
       exec:
-        - apk add --no-cache iproute2 || true
-        - ip addr add 10.10.40.100/24 dev eth1 || true
-        - ip route replace default via 10.10.40.1 dev eth1 || true
-        - ip link set dev eth1 up || true
+        - apk add --no-cache iproute2       
+        # TODO: Assign IP (10.10.40.100/24) and default gateway (10.10.40.1)
 
   links:
-    # Connect Subnet 1 (Student) to Switch
-    - endpoints: ["student-client:eth1", "sw-student:eth1"]
-    - endpoints: ["router:eth1", "sw-student:eth2"]
-
-    # Connect Subnet 2 (Faculty) to Switch
-    - endpoints: ["faculty-client:eth1", "sw-faculty:eth1"]
-    - endpoints: ["router:eth2", "sw-faculty:eth2"]
-
-    # Connect Subnet 3 (Admin) to Switch
-    - endpoints: ["admin-client:eth1", "sw-admin:eth1"]
-    - endpoints: ["router:eth3", "sw-admin:eth2"]
-
-    # Connect Subnet 4 (Services) to Switch (WAF, Juice Shop, Postgres)
-    - endpoints: ["waf-proxy:eth1", "sw-services:eth1"]
-    - endpoints: ["juiceshop-app:eth1", "sw-services:eth2"]
-    - endpoints: ["postgres-db:eth1", "sw-services:eth3"]
-    - endpoints: ["router:eth4", "sw-services:eth4"]
+    # TODO: Connect clients, servers, and router ports to their respective switch ports
 ```
 
 ---
@@ -333,7 +280,7 @@ topology:
 Your topology must successfully run and pass all six of the following test cases executed directly via `docker exec`:
 
 ### **Test 1: Legitimate Bulletin Web Access (Student to WAF)**
-* **Command:** `docker exec -it clab-campus-network-security-student-client curl -s -o /dev/null -w "%{http_code}" http://10.10.40.80:8080`
+* **Command:** `docker exec -it clab-campus-network-security-student-client curl -s -o /dev/null -w "%{http_code}" http://10.10.40.80:8080/`
 * **Expected Result:** `200`
 
 ### **Test 2: ModSecurity WAF Interception of SQL Injection**
@@ -350,11 +297,11 @@ Your topology must successfully run and pass all six of the following test cases
 
 ### **Test 5: SSH Privilege Validation (IT Admin Host Allowed)**
 * **Command:** `docker exec -it clab-campus-network-security-admin-client nc -zv -w 3 10.10.40.100 22`
-* **Expected Result:** `open` / connection refused (or connection reset). Connection refused is fine, that means the connection has passed the firewall and has gotten to the destination.
+* **Expected Result:** Connection refused (packet reaches target, confirming rule allows traversal, but port 22 is unlistened on DB)
 
 ### **Test 6: SSH Privilege Restriction (Student Host Blocked)**
 * **Command:** `docker exec -it clab-campus-network-security-student-client nc -zv -w 3 10.10.40.100 22`
-* **Expected Result:** Connection timeout / failure
+* **Expected Result:** Connection timeout / failure (dropped by router firewall)
 
 ---
 
@@ -364,7 +311,7 @@ You must host your completed assignment in a **Public GitHub Repository** contai
 
 1. Valid `lab.clab.yml` topology definition file.
 2. Complete Dockerfiles under `images/juiceshop/` and `images/modsec/`.
-3. Complete configuration files under `config/iptables.rules` (or defined in the container `exec` in the `yml` file) and `config/modsec-custom.conf`.
+3. Complete configuration file under `config/modsec-custom.conf`.
 4. A comprehensive `README.md` file providing:
    * Prerequisites and local Docker image build instructions.
    * Containerlab deployment (`sudo clab deploy -t lab.clab.yml`) and destroy (`sudo clab destroy -t lab.clab.yml`) commands.
