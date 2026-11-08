@@ -1,4 +1,4 @@
-# Lab Assignment: Enterprise Campus Network Security & Application Defense
+# Class Assignment: Enterprise Campus Network Security & Application Defence
 
 ## Objective
 
