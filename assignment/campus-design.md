@@ -8,7 +8,7 @@ You will design, configure, and secure a 4-subnet campus environment connecting 
 
 ## 1. Campus Network Architecture & Topology
 
-The campus network consists of four distinct subnets connected through a central Alpine Linux Gateway / Firewall router:
+The campus network consists of four distinct subnets connected through a central Alpine Linux Gateway / Firewall router, utilizing dedicated virtual switch bridges (`bridge` kind in Containerlab) per subnet to maintain independent gateway interfaces (`.1`):
 
 1. **Student Subnet (`10.10.10.0/24`):** General student population client zone.
 2. **Faculty Subnet (`10.10.20.0/24`):** Academic staff client zone.
@@ -30,7 +30,7 @@ flowchart TD
     end
 
     subgraph GATEWAY ["Central Perimeter Router / Firewall"]
-        router["Alpine Router (iptables)<br/><br/>eth1: 10.10.10.1/24 (Student)<br/>eth2: 10.10.20.1/24 (Faculty)<br/>eth3: 10.10.30.1/24 (Admin)<br/>eth4: 10.10.40.1/24 (WAF)<br/>eth5: 10.10.40.1/24 (Juice Shop)<br/>eth6: 10.10.40.1/24 (Postgres)"]
+        router["Alpine Router (iptables)<br/><br/>eth1: 10.10.10.1/24 (Student GW)<br/>eth2: 10.10.20.1/24 (Faculty GW)<br/>eth3: 10.10.30.1/24 (Admin GW)<br/>eth4: 10.10.40.1/24 (Services GW)"]
     end
 
     subgraph SERVICES ["Services Subnet (10.10.40.0/24)"]
@@ -40,12 +40,19 @@ flowchart TD
         postgres["PostgreSQL Database<br/>(Grading DB)<br/>10.10.40.100/24<br/>GW: 10.10.40.1"]
     end
 
-    student_node ---|eth1 <--> eth1| router
-    faculty_node ---|eth1 <--> eth2| router
-    admin_node ---|eth1 <--> eth3| router
-    router ---|eth4 <--> eth1| waf
-    router ---|eth5 <--> eth1| juiceshop
-    router ---|eth6 <--> eth1| postgres
+    student_node ---|eth1 <--> sw-student| sw_student((Student Switch))
+    sw_student ---|router:eth1| router
+    
+    faculty_node ---|eth1 <--> sw-faculty| sw_faculty((Faculty Switch))
+    sw_faculty ---|router:eth2| router
+    
+    admin_node ---|eth1 <--> sw-admin| sw_admin((Admin Switch))
+    sw_admin ---|router:eth3| router
+    
+    waf ---|eth1 <--> sw-services| sw_services((Services Switch))
+    juiceshop ---|eth1 <--> sw-services| sw_services
+    postgres ---|eth1 <--> sw-services| sw_services
+    sw_services ---|router:eth4| router
 
     classDef admin fill:#ffe6e6,stroke:#d9534f,stroke-width:2px;
     classDef faculty fill:#fff0e6,stroke:#f0ad4e,stroke-width:1px;
@@ -64,7 +71,7 @@ flowchart TD
 
 ### Policy 1: Gateway Routing & Inter-Subnet Stateful Filtering
 
-* The central router must enable kernel IP forwarding (`sysctl -w net.ipv4.ip_forward=1`) and serve as the default gateway (`.1`) across all interfaces.
+* The central router must enable kernel IP forwarding (`sysctl -w net.ipv4.ip_forward=1`) and serve as the default gateway (`.1`) across all router interfaces (`eth1` through `eth4`).
 * Enforce stateful packet tracking (`ESTABLISHED,RELATED`) on `iptables` to allow return traffic automatically for established outbound sessions.
 * Enforce a default `DROP` policy on the `FORWARD` filter chain.
 
@@ -197,45 +204,74 @@ docker build -t custom-waf:latest ./images/modsec
 COMMIT
 ```
 
-### Starter: `lab.clab.yml`
+### Starter: `lab.clab.yml` (Using Switch Bridges per Subnet)
 
 ```yaml
 name: campus-network-security
 
 topology:
   nodes:
-    # 1. Central Router / Firewall Node (Stock Alpine - Packages installed via exec)
+    # 1. Central Router / Firewall Node
     router:
       kind: linux
       image: alpine:latest
       exec:
         - apk add --no-cache iproute2 iptables
         - sysctl -w net.ipv4.ip_forward=1
-        # TODO: Configure interface IP addresses and apply firewall rules
+        
+        # Configure Gateway IP Addresses per Interface
+        - ip addr replace 10.10.10.1/24 dev eth1
+        - ip addr replace 10.10.20.1/24 dev eth2
+        - ip addr replace 10.10.30.1/24 dev eth3
+        - ip addr replace 10.10.40.1/24 dev eth4
+        
+        # Bring router interfaces up
+        - ip link set dev eth1 up
+        - ip link set dev eth2 up
+        - ip link set dev eth3 up
+        - ip link set dev eth4 up
 
-    # 2. Subnet Clients
+        # TODO: Apply iptables security policies and rules
+
+    # 2. Subnet Switches (Linux bridge kind to host multiple hosts per subnet)
+    sw-student:
+      kind: bridge
+    sw-faculty:
+      kind: bridge
+    sw-admin:
+      kind: bridge
+    sw-services:
+      kind: bridge
+
+    # 3. Subnet Clients
     student-client:
       kind: linux
       image: alpine:latest
       exec:
         - apk add --no-cache curl netcat-openbsd iproute2
-        # TODO: Assign IP (10.10.10.10/24) and set default gateway (10.10.10.1)
+        - ip addr add 10.10.10.10/24 dev eth1
+        - ip route replace default via 10.10.10.1 dev eth1
+        - ip link set dev eth1 up
 
     faculty-client:
       kind: linux
       image: alpine:latest
       exec:
         - apk add --no-cache curl netcat-openbsd iproute2
-        # TODO: Assign IP (10.10.20.10/24) and set default gateway (10.10.20.1)
+        - ip addr add 10.10.20.10/24 dev eth1
+        - ip route replace default via 10.10.20.1 dev eth1
+        - ip link set dev eth1 up
 
     admin-client:
       kind: linux
       image: alpine:latest
       exec:
         - apk add --no-cache curl netcat-openbsd iproute2
-        # TODO: Assign IP (10.10.30.10/24) and set default gateway (10.10.30.1)
+        - ip addr add 10.10.30.10/24 dev eth1
+        - ip route replace default via 10.10.30.1 dev eth1
+        - ip link set dev eth1 up
 
-    # 3. Centralized Services Subnet
+    # 4. Centralized Services Subnet
     waf-proxy:
       kind: linux
       image: custom-waf:latest
@@ -245,13 +281,17 @@ topology:
       binds:
         - config/modsec-custom.conf:/etc/modsecurity.d/owasp-crs/rules/RESPONSE-999-CUSTOM.conf:ro
       exec:
-        # TODO: Assign IP (10.10.40.80/24) and set default gateway (10.10.40.1)
+        - ip addr add 10.10.40.80/24 dev eth1
+        - ip route replace default via 10.10.40.1 dev eth1
+        - ip link set dev eth1 up
 
     juiceshop-app:
       kind: linux
       image: custom-juiceshop:latest
       exec:
-        # TODO: Assign IP (10.10.40.81/24) and set default gateway (10.10.40.1)
+        - ip addr add 10.10.40.81/24 dev eth1
+        - ip route replace default via 10.10.40.1 dev eth1
+        - ip link set dev eth1 up
 
     postgres-db:
       kind: linux
@@ -261,15 +301,29 @@ topology:
         POSTGRES_PASSWORD: postgres
         POSTGRES_DB: grading_db
       exec:
-        # TODO: Assign IP (10.10.40.100/24) and set default gateway (10.10.40.1)
+        - apk add --no-cache iproute2 || true
+        - ip addr add 10.10.40.100/24 dev eth1 || true
+        - ip route replace default via 10.10.40.1 dev eth1 || true
+        - ip link set dev eth1 up || true
 
   links:
-    - endpoints: ["student-client:eth1", "router:eth1"]
-    - endpoints: ["faculty-client:eth1", "router:eth2"]
-    - endpoints: ["admin-client:eth1", "router:eth3"]
-    - endpoints: ["waf-proxy:eth1", "router:eth4"]
-    - endpoints: ["juiceshop-app:eth1", "router:eth5"]
-    - endpoints: ["postgres-db:eth1", "router:eth6"]
+    # Connect Subnet 1 (Student) to Switch
+    - endpoints: ["student-client:eth1", "sw-student:eth1"]
+    - endpoints: ["router:eth1", "sw-student:eth2"]
+
+    # Connect Subnet 2 (Faculty) to Switch
+    - endpoints: ["faculty-client:eth1", "sw-faculty:eth1"]
+    - endpoints: ["router:eth2", "sw-faculty:eth2"]
+
+    # Connect Subnet 3 (Admin) to Switch
+    - endpoints: ["admin-client:eth1", "sw-admin:eth1"]
+    - endpoints: ["router:eth3", "sw-admin:eth2"]
+
+    # Connect Subnet 4 (Services) to Switch (WAF, Juice Shop, Postgres)
+    - endpoints: ["waf-proxy:eth1", "sw-services:eth1"]
+    - endpoints: ["juiceshop-app:eth1", "sw-services:eth2"]
+    - endpoints: ["postgres-db:eth1", "sw-services:eth3"]
+    - endpoints: ["router:eth4", "sw-services:eth4"]
 ```
 
 ---
