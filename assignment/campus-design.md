@@ -350,7 +350,7 @@ Your topology must successfully run and pass all six of the following test cases
 
 ### **Test 5: SSH Privilege Validation (IT Admin Host Allowed)**
 * **Command:** `docker exec -it clab-campus-network-security-admin-client nc -zv -w 3 10.10.40.100 22`
-* **Expected Result:** `open` / connection succeeded (or connection reset)
+* **Expected Result:** `open` / connection refused (or connection reset). Connection refused is fine, that means the connection has passed the firewall and has gotten to the destination.
 
 ### **Test 6: SSH Privilege Restriction (Student Host Blocked)**
 * **Command:** `docker exec -it clab-campus-network-security-student-client nc -zv -w 3 10.10.40.100 22`
