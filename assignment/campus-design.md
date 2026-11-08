@@ -83,7 +83,7 @@ flowchart TD
 ### Policy 3: Campus Web & Database Access Control
 
 1. **School Bulletin App (OWASP Juice Shop):**
-   * Must be accessible via HTTP (`tcp/80`) through the **ModSecurity WAF Proxy** (`10.10.40.80`) by **Students, Faculty, and IT Admin staff**.
+   * Must be accessible via HTTP (`tcp/8080`) through the **ModSecurity WAF Proxy** (`10.10.40.80`) by **Students, Faculty, and IT Admin staff**.
    * Direct user connections from client subnets to the backend container directly (`10.10.40.81`) must be prevented or isolated by firewall rules; all user HTTP traffic must transit through the WAF. The WAF routes backend traffic via its environment configuration (`BACKEND="http://10.10.40.81:3000"`).
 
 2. **Grading Database (PostgreSQL):**
@@ -193,7 +193,7 @@ docker build -t custom-waf:latest ./images/modsec
 
 
 # --- 3. BULLETIN APP ACCESS CONTROL ---
-# Allow Student, Faculty, and Admin to access WAF Proxy (10.10.40.80:80)
+# Allow Student, Faculty, and Admin to access WAF Proxy (10.10.40.80:8080)
 # Block direct client access to Juice Shop backend (10.10.40.81)
 
 
@@ -333,11 +333,11 @@ topology:
 Your topology must successfully run and pass all six of the following test cases executed directly via `docker exec`:
 
 ### **Test 1: Legitimate Bulletin Web Access (Student to WAF)**
-* **Command:** `docker exec -it clab-campus-network-security-student-client curl -s -o /dev/null -w "%{http_code}" http://10.10.40.80/`
+* **Command:** `docker exec -it clab-campus-network-security-student-client curl -s -o /dev/null -w "%{http_code}" http://10.10.40.80:8080`
 * **Expected Result:** `200`
 
 ### **Test 2: ModSecurity WAF Interception of SQL Injection**
-* **Command:** `docker exec -it clab-campus-network-security-student-client curl -s -o /dev/null -w "%{http_code}" "http://10.10.40.80/rest/user/login?email='OR'1'='1"`
+* **Command:** `docker exec -it clab-campus-network-security-student-client curl -s -o /dev/null -w "%{http_code}" "http://10.10.40.80:8080/rest/user/login?email='OR'1'='1"`
 * **Expected Result:** `403`
 
 ### **Test 3: Authorized Grading DB Access (Faculty Subnet)**
