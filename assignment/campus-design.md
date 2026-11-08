@@ -8,7 +8,7 @@ You will design, configure, and secure a 4-subnet campus environment connecting 
 
 ## 1. Campus Network Architecture & Topology
 
-The campus network consists of four distinct subnets connected through a central Alpine Linux Gateway / Firewall router, utilizing alpine virtual switches per subnet to maintain independent gateway interfaces:
+The campus network consists of four distinct subnets connected through a central Alpine Linux Gateway / Firewall router, utilizing Alpine Linux virtual switches per subnet to maintain independent gateway interfaces:
 
 1. **Student Subnet (`10.10.10.0/24`):** General student population client zone.
 2. **Faculty Subnet (`10.10.20.0/24`):** Academic staff client zone.
