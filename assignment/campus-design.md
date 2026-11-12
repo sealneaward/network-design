@@ -226,19 +226,22 @@ topology:
       kind: linux
       image: alpine:latest
       exec:
-        # TODO: Assign IP (10.10.10.10/24), set default gateway (10.10.10.1), and install tools
+        - apk add --no-cache curl netcat-openbsd
+        # TODO: Assign IP (10.10.10.10/24), set default gateway (10.10.10.1)
 
     faculty-client:
       kind: linux
       image: alpine:latest
       exec:
-        # TODO: Assign IP (10.10.20.10/24), set default gateway (10.10.20.1), and install tools
+        - apk add --no-cache curl netcat-openbsd
+        # TODO: Assign IP (10.10.20.10/24), set default gateway (10.10.20.1)
 
     admin-client:
       kind: linux
       image: alpine:latest
       exec:
-        # TODO: Assign IP (10.10.30.10/24), set default gateway (10.10.30.1), and install tools
+        - apk add --no-cache curl netcat-openbsd
+        # TODO: Assign IP (10.10.30.10/24), set default gateway (10.10.30.1)
 
     # 4. Centralized Services Subnet
     waf-proxy:
