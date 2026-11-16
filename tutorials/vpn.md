@@ -162,8 +162,7 @@ topology:
       image: alpine:latest
       exec:
         - ip addr add 10.1.0.10/24 dev eth1
-        - ip route del default || true
-        - ip route add default via 10.1.0.1
+        - ip route replace default via 10.1.0.1 dev eth1
         - apk add --no-cache curl tcpdump iproute2
 
     gw-a:
@@ -174,8 +173,7 @@ topology:
       exec:
         - ip addr add 10.1.0.1/24 dev eth1
         - ip addr add 198.51.100.2/24 dev eth2
-        - ip route del default || true
-        - ip route add default via 198.51.100.1
+        - ip route replace default via 198.51.100.1
         - sysctl -w net.ipv4.ip_forward=1
         - apk add --no-cache strongswan tcpdump iproute2
         - sh -c "charon & sleep 2 && swanctl --load-all"
@@ -197,8 +195,7 @@ topology:
       exec:
         - ip addr add 10.2.0.1/24 dev eth1
         - ip addr add 203.0.113.2/24 dev eth2
-        - ip route del default || true
-        - ip route add default via 203.0.113.1
+        - ip route replace default via 203.0.113.1
         - sysctl -w net.ipv4.ip_forward=1
         - apk add --no-cache strongswan tcpdump iproute2
         - sh -c "charon & sleep 2 && swanctl --load-all"
@@ -208,8 +205,7 @@ topology:
       image: alpine:latest
       exec:
         - ip addr add 10.2.0.10/24 dev eth1
-        - ip route del default || true
-        - ip route add default via 10.2.0.1
+        - ip route replace default via 10.2.0.1 dev eth1
         - apk add --no-cache python3 tcpdump iproute2
         - sh -c "echo 'CONFIDENTIAL_INTERNAL_REPORT_DATA' > /tmp/secret.txt && python3 -m http.server 8080 -d /tmp &"
 
