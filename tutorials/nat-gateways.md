@@ -1,4 +1,4 @@
-# Understanding NAT Gateways & Hands-On Lab with Containerlab
+# Understanding NAT Gateways 
 
 ## 1. What is a NAT Gateway?
 
