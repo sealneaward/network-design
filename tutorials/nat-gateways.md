@@ -68,31 +68,31 @@ topology:
       kind: linux
       image: alpine:latest
       exec:
+        - apk add --no-cache curl tcpdump
         - ip addr add 192.168.10.2/24 dev eth1
         - ip route replace default via 192.168.10.1 dev eth1            
-        - apk add --no-cache curl tcpdump iproute2
 
     nat-gw:
       kind: linux
       image: alpine:latest
       exec:
+        # Install networking & firewall tools
+        - apk add --no-cache iptables tcpdump conntrack-tools      
         # Configure LAN and WAN interfaces
         - ip addr add 192.168.10.1/24 dev eth1
         - ip addr add 203.0.113.1/24 dev eth2
         # Enable IPv4 packet forwarding
         - sysctl -w net.ipv4.ip_forward=1
-        # Install networking & firewall tools
-        - apk add --no-cache iptables tcpdump conntrack-tools iproute2
         # Configure NAT (Masquerade) on the WAN interface (eth2)
         - iptables -t nat -A POSTROUTING -o eth2 -j MASQUERADE
 
     wan-server:
       kind: linux
-      image: alpine:latest
+      image: nginx:alpine
       exec:
+        - apk add --no-cache curl tcpdump     
         - ip addr add 203.0.113.10/24 dev eth1
         # Intentionally DO NOT add a route to 192.168.10.0/24
-        - apk add --no-cache python3 tcpdump iproute2
 
   links:
     - endpoints: ["client:eth1", "nat-gw:eth1"]
@@ -110,7 +110,7 @@ sudo containerlab deploy -t nat-lab.clab.yml
 Once deployed, start a simple HTTP server on `wan-server` so we have a service to test against:
 
 ```bash
-docker exec -d clab-nat-lab-wan-server python3 -m http.server 8080
+docker exec -d clab-nat-lab-wan-server python3 -m http.server 80
 ```
 
 ---
@@ -123,17 +123,17 @@ Use the following commands across the three containers to inspect packet headers
 
 1. **Start a packet capture on `wan-server`** to see what IP address external servers observe when `client` connects:
    ```bash
-   docker exec -it clab-nat-lab-wan-server tcpdump -i eth1 -nn port 8080
+   docker exec -it clab-nat-lab-wan-server tcpdump -i eth1 -nn port 80
    ```
 
 2. **Open a second terminal** and make an HTTP request from `client` (`192.168.10.2`) to `wan-server` (`203.0.113.10`):
    ```bash
-   docker exec -it clab-nat-lab-client curl -I http://203.0.113.10:8080
+   docker exec -it clab-nat-lab-client curl -I http://203.0.113.10:80
    ```
 
 3. **Observe the `tcpdump` output on `wan-server`:**
    ```text
-   15:20:01.123456 IP 203.0.113.1.48290 > 203.0.113.10.8080: Flags [S], seq 123456...
+   15:20:01.123456 IP 203.0.113.1.48290 > 203.0.113.10.80: Flags [S], seq 123456...
    ```
    *Observation:* Even though the request originated from `192.168.10.2`, `wan-server` sees the traffic coming from **`203.0.113.1`** (the NAT Gateway's WAN IP).
 
@@ -149,7 +149,7 @@ While generating traffic (or immediately after running `curl`), inspect the acti
    ```
    *Example Output:*
    ```text
-   tcp      6 118 TIME_WAIT src=192.168.10.2 dst=203.0.113.10 sport=51422 dport=8080 src=203.0.113.10 dst=203.0.113.1 sport=8080 dport=51422 [ASSURED] mark=0 use=1
+   tcp      6 118 TIME_WAIT src=192.168.10.2 dst=203.0.113.10 sport=51422 dport=80 src=203.0.113.10 dst=203.0.113.1 sport=80 dport=51422 [ASSURED] mark=0 use=1
    ```
    *Observation:* Notice how the tuple tracks both the original direction (`src=192.168.10.2 dst=203.0.113.10`) and the expected reply direction (`src=203.0.113.10 dst=203.0.113.1`).
 
