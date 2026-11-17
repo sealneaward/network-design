@@ -107,12 +107,6 @@ Run the following command in the directory containing your `nat-lab.clab.yml` fi
 sudo containerlab deploy -t nat-lab.clab.yml
 ```
 
-Once deployed, start a simple HTTP server on `wan-server` so we have a service to test against:
-
-```bash
-docker exec -d clab-nat-lab-wan-server python3 -m http.server 80
-```
-
 ---
 
 ## 4. Observing How NAT Gateways Affect Networks
