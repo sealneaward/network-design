@@ -51,9 +51,9 @@ graph TD
 To receive full credit for this assignment, you must submit the following:
 
 1. **Written Questions & Responses** (in PDF or Markdown format).
-2. **Network Topology Configuration File (`topology.yaml`):** A valid YAML configuration file defining your network interfaces, IP addresses, subnets, and routing table setups for all 4 hosts and the router.
+2. **Network Topology Configuration File (`lab.clab.yml`):** A valid YAML configuration file defining your network interfaces, IP addresses, subnets, and routing table setups for all 4 hosts and the router.
 3. **[BONUS - 10%] GitHub Repository Submission:**
-   - Submit a direct link to a public/accessible GitHub repository containing your `topology.yaml`.
+   - Submit a direct link to a public/accessible GitHub repository containing your `lab.clab.yml`.
    - The repository root **must** contain a `README.md` file properly documenting the setup instructions, and the destroy instructions.
 
 ---
@@ -74,7 +74,7 @@ Answer the following questions concisely and accurately based on networking prin
 
 ## Part 2: Configuration & YAML Verification [Total: 60 Marks]
 
-Create a file named `topology.yaml` that models your entire network configuration. d
+Create a file named `lab.clab.yml` that models your entire network configuration. d
 
 ### Grading Criteria for Part 2:
 - **Syntactic Validity [15 Marks]:** Correct YAML structure and indentation.
@@ -89,9 +89,9 @@ Create a file named `topology.yaml` that models your entire network configuratio
 To claim the extra **10% bonus marks**:
 
 1. Create a public GitHub repository.
-2. Push your `topology.yaml` file into the root of the repository.
+2. Push your `lab.clab.yml` file into the root of the repository.
 3. Create a well-structured `README.md` in the repository root that includes:
    - **Project Overview:** A short explanation of the lab and network architecture.
    - **Topology Diagram:** An ASCII diagram or image illustrating the connections between the 4 hosts, 2 subnets, and the router.
-   - **Verification Instructions:** Instructions on how to validate the syntax of the `topology.yaml` file (e.g., using a Python script or YAML linter tool).
+   - **Verification Instructions:** Instructions on how to validate the syntax of the `lab.clab.yml` file (e.g., using a Python script or YAML linter tool).
 4. Provide the GitHub repository URL in your main lab submission document.
