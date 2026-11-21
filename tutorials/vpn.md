@@ -147,7 +147,7 @@ topology:
         - apk add --no-cache curl python3 tcpdump iproute2
         - ip addr add 10.2.0.10/24 dev eth1
         - ip route replace default via 10.2.0.1
-        - sh -c "echo 'CONFIDENTIAL_WIREGUARD_PAYLOAD' > /tmp/secret.txt && python3 -m http.server 8080 -d /tmp &"
+        - sh -c "echo 'CONFIDENTIAL_WIREGUARD_PAYLOAD' > /tmp/secret.txt && nohup python3 -m http.server 8080 --bind 0.0.0.0 -d /tmp >/tmp/http.log 2>&1 &"
 
   links:
     - endpoints: ["host-a:eth1", "gw-a:eth1"]
@@ -241,6 +241,11 @@ docker exec -it clab-wg-lab-gw-a tcpdump -i wg0 -nn -A port 8080
 
 Trigger `curl http://10.2.0.10:8080/secret.txt` from `host-a` in another terminal. Because `wg0` sits *before* encryption on egress (and *after* decryption on ingress), you will see the raw private IPs (`10.1.0.10` $\rightarrow$ `10.2.0.10`) and the plaintext string `CONFIDENTIAL_WIREGUARD_PAYLOAD`.
 
+
+```bash
+docker exec -it clab-wg-lab-host-a curl http://10.2.0.10:8080/secret.txt
+```
+
 ### 2. Capture Encrypted WireGuard UDP Packets on the ISP (`isp`)
 
 Now run `tcpdump` on the untrusted `isp` router:
@@ -250,6 +255,10 @@ docker exec -it clab-wg-lab-isp tcpdump -i eth1 -nn -X udp port 51820
 ```
 
 Trigger `curl http://10.2.0.10:8080/secret.txt` from `host-a` again.
+
+```bash
+docker exec -it clab-wg-lab-host-a curl http://10.2.0.10:8080/secret.txt
+```
 
 *Example Output on `isp`:*
 ```text
