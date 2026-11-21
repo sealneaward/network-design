@@ -79,24 +79,26 @@ name: wg-lab
 
 topology:
   nodes:
-    host-a:
+    isp:
       kind: linux
       image: alpine:latest
       exec:
-        - ip addr add 10.1.0.10/24 dev eth1
-        - ip route replace default via 10.1.0.1
-        - apk add --no-cache curl tcpdump iproute2
+        - apk add --no-cache tcpdump iproute2      
+        - ip addr add 198.51.100.1/24 dev eth1
+        - ip addr add 203.0.113.1/24 dev eth2
+        - sysctl -w net.ipv4.ip_forward=1
 
     gw-a:
       kind: linux
       image: alpine:latest
       exec:
+        - apk add --no-cache wireguard-tools tcpdump iproute2
+
         # 1. Configure LAN, WAN, and default route
         - ip addr add 10.1.0.1/24 dev eth1
         - ip addr add 198.51.100.2/24 dev eth2
         - ip route replace default via 198.51.100.1
         - sysctl -w net.ipv4.ip_forward=1
-        - apk add --no-cache wireguard-tools tcpdump iproute2
 
         # 2. Create and configure the WireGuard interface (wg0)
         - ip link add dev wg0 type wireguard
@@ -108,25 +110,17 @@ topology:
         # 3. Route Site B's subnet into the WireGuard interface
         - ip route add 10.2.0.0/24 dev wg0
 
-    isp:
-      kind: linux
-      image: alpine:latest
-      exec:
-        - ip addr add 198.51.100.1/24 dev eth1
-        - ip addr add 203.0.113.1/24 dev eth2
-        - sysctl -w net.ipv4.ip_forward=1
-        - apk add --no-cache tcpdump iproute2
-
     gw-b:
       kind: linux
       image: alpine:latest
       exec:
+        - apk add --no-cache wireguard-tools tcpdump iproute2
+
         # 1. Configure LAN, WAN, and default route
         - ip addr add 10.2.0.1/24 dev eth1
         - ip addr add 203.0.113.2/24 dev eth2
         - ip route replace default via 203.0.113.1
         - sysctl -w net.ipv4.ip_forward=1
-        - apk add --no-cache wireguard-tools tcpdump iproute2
 
         # 2. Create and configure the WireGuard interface (wg0)
         - ip link add dev wg0 type wireguard
@@ -138,13 +132,21 @@ topology:
         # 3. Route Site A's subnet into the WireGuard interface
         - ip route add 10.1.0.0/24 dev wg0
 
+    host-a:
+      kind: linux
+      image: alpine:latest
+      exec:
+        - apk add --no-cache curl tcpdump iproute2      
+        - ip addr add 10.1.0.10/24 dev eth1
+        - ip route replace default via 10.1.0.1
+
     host-b:
       kind: linux
       image: alpine:latest
       exec:
+        - apk add --no-cache curl python3 tcpdump iproute2
         - ip addr add 10.2.0.10/24 dev eth1
         - ip route replace default via 10.2.0.1
-        - apk add --no-cache python3 tcpdump iproute2
         - sh -c "echo 'CONFIDENTIAL_WIREGUARD_PAYLOAD' > /tmp/secret.txt && python3 -m http.server 8080 -d /tmp &"
 
   links:
