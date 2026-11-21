@@ -76,9 +76,8 @@ graph TD
 Ensure your local repository matches the following structure before submitting:
 
 ```text
-wireguard-hub-spoke-lab/
-├── README.md
-└── lab.clab.yml
+README.md
+lab.clab.yml
 ```
 
 ---
