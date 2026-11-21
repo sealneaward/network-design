@@ -103,8 +103,8 @@ topology:
         # 2. Create and configure the WireGuard interface (wg0)
         - ip link add dev wg0 type wireguard
         - ip addr add 172.16.0.1/30 dev wg0
-        - sh -c "echo '2B2f9M1x4P7v8L0q3W6y9Z2a5C8e1G4j7M0p3S6v9Y0=' > /tmp/private.key"
-        - wg set wg0 listen-port 51820 private-key /tmp/private.key peer l3Q9xR7v2P5m8K1n4J6h9G2f5D8s1A4z7X0c3V6b9N0= allowed-ips 172.16.0.2/32,10.2.0.0/24 endpoint 203.0.113.2:51820 persistent-keepalive 15
+        - sh -c "echo 'yI3JXo/7F0ofNjyJsXbHklEst4yZN4/AiJJ4Xmtaok0=' > /tmp/private.key"
+        - wg set wg0 listen-port 51820 private-key /tmp/private.key peer xlVbQyIZXZ/azpUgJDYJodxHJKw3u0Gl7AeFrH3O1S8= allowed-ips 172.16.0.2/32,10.2.0.0/24 endpoint 203.0.113.2:51820 persistent-keepalive 15
         - ip link set up dev wg0
 
         # 3. Route Site B's subnet into the WireGuard interface
@@ -125,8 +125,8 @@ topology:
         # 2. Create and configure the WireGuard interface (wg0)
         - ip link add dev wg0 type wireguard
         - ip addr add 172.16.0.2/30 dev wg0
-        - sh -c "echo '4D4h1O3z6R9x0N2s5Y8a1B4d7F0h3K6n9Q2t5W8z1C0=' > /tmp/private.key"
-        - wg set wg0 listen-port 51820 private-key /tmp/private.key peer u9I2o5P8a1S4d7F0g3H6j9K2l5Z8x1C4v7B0n3M6q90= allowed-ips 172.16.0.1/32,10.1.0.0/24 endpoint 198.51.100.2:51820 persistent-keepalive 15
+        - sh -c "echo 'yK2TEOIUH9ZVtxm3aPKNqqV2T5VLszSSXfgL9ids30Q=' > /tmp/private.key"
+        - wg set wg0 listen-port 51820 private-key /tmp/private.key peer Ix3WRdpj7EWXOjv9JjSiAMVJSgGucEC/2ewjqsYMVhE= allowed-ips 172.16.0.1/32,10.1.0.0/24 endpoint 198.51.100.2:51820 persistent-keepalive 15
         - ip link set up dev wg0
 
         # 3. Route Site A's subnet into the WireGuard interface
