@@ -68,11 +68,20 @@ graph LR
 
 ## 3. Containerlab Topology & WireGuard Configuration
 
-Because WireGuard configurations are short and self-contained, we can configure everything directly inside a single Containerlab YAML file (`wg-lab.clab.yml`). For reproducibility in this lab, we use pre-generated Curve25519 lab keypairs so both gateways peer immediately upon boot.
+Because WireGuard configurations are short and self-contained, we can configure everything directly inside a single Containerlab YAML file (`wg-lab.clab.yml`).
 
-### Step 1: Create the Containerlab Topology (`wg-lab.clab.yml`)
+### Important: Key Pair Consistency, `keys` Directory Setup, and Redeploying
 
-Create a directory (`mkdir wg-lab && cd wg-lab`) and save the following configuration as `wg-lab.clab.yml`:
+Hardcoding static key pairs across multiple `exec` blocks in a topology YAML can easily introduce key mismatches or silent packet drops if a peer public key does not match its counterpart's active private key. Keep these lessons in mind:
+
+1. **Create a `keys` Directory (Not a File):** When bind-mounting a shared key directory (such as `./keys:/tmp/keys`) so nodes generate and read `.key` and `.pub` files automatically, **create a directory (`mkdir -p keys`)**, not a regular file. Creating a file named `keys` on the host beforehand will cause Docker/Containerlab bind-mounting into `/tmp/keys` to fail. Multiple key files (`gw-a.key`, `gw-a.pub`, `gw-b.key`, `gw-b.pub`) live inside that directory.
+2. **Derive Public Keys From Private Keys (Single Source of Truth):** Generate each node's Curve25519 private key and derive its public key directly with `wg genkey` and `wg pubkey`—either dynamically at startup into a shared `./keys` bind mount or via a helper script/`Makefile`—so public and private keys cannot drift out of sync.
+3. **Always Pass `--reconfigure` When Updating Keys or `exec` Steps:** If you modify keys or `exec` commands in your YAML and redeploy an existing lab, run `sudo containerlab deploy -t wg-lab.clab.yml --reconfigure` so `exec` steps re-run on the nodes instead of leaving stale keys active in running containers. (To rotate keys cleanly, clear `./keys/*` and deploy with `--reconfigure`.)
+4. **Verify Handshakes and Byte Counters Before Debugging Routing:** If traffic experiences 100% packet loss, check `wg show` on each gateway first. A mismatched or stale key shows **no recent handshake** and **`0 B received`** even when keepalives or pings are being sent.
+
+### Step 1: Create the `keys` Directory and Topology File (`wg-lab.clab.yml`)
+
+Create a lab directory and a **`keys` directory** (`mkdir -p wg-lab/keys && cd wg-lab`), then save the following configuration as `wg-lab.clab.yml` (using dynamic key generation via `./keys:/tmp/keys` so each node's public key is derived directly from its own private key):
 
 ```yaml
 name: wg-lab
@@ -91,6 +100,8 @@ topology:
     gw-a:
       kind: linux
       image: alpine:latest
+      binds:
+        - ./keys:/tmp/keys
       exec:
         - apk add --no-cache wireguard-tools tcpdump iproute2
 
@@ -100,19 +111,26 @@ topology:
         - ip route replace default via 198.51.100.1
         - sysctl -w net.ipv4.ip_forward=1
 
-        # 2. Create and configure the WireGuard interface (wg0)
+        # 2. Generate gw-a key pair if missing and wait for gw-b public key
+        - mkdir -p /tmp/keys
+        - sh -c '[ -f /tmp/keys/gw-a.key ] || (wg genkey > /tmp/keys/gw-a.key && wg pubkey < /tmp/keys/gw-a.key > /tmp/keys/gw-a.pub)'
+        - sh -c 'i=0; while [ ! -s /tmp/keys/gw-b.pub ] && [ $i -lt 50 ]; do sleep 0.2; i=$((i+1)); done'
+
+        # 3. Create and configure the WireGuard interface (wg0)
         - ip link add dev wg0 type wireguard
         - ip addr add 172.16.0.1/30 dev wg0
-        - sh -c "echo 'yI3JXo/7F0ofNjyJsXbHklEst4yZN4/AiJJ4Xmtaok0=' > /tmp/private.key"
-        - wg set wg0 listen-port 51820 private-key /tmp/private.key peer xlVbQyIZXZ/azpUgJDYJodxHJKw3u0Gl7AeFrH3O1S8= allowed-ips 172.16.0.2/32,10.2.0.0/24 endpoint 203.0.113.2:51820 persistent-keepalive 15
+        - wg set wg0 listen-port 51820 private-key /tmp/keys/gw-a.key
+        - sh -c 'wg set wg0 peer "$(cat /tmp/keys/gw-b.pub)" allowed-ips 172.16.0.2/32,10.2.0.0/24 endpoint 203.0.113.2:51820 persistent-keepalive 15'
         - ip link set up dev wg0
 
-        # 3. Route Site B's subnet into the WireGuard interface
+        # 4. Route Site B's subnet into the WireGuard interface
         - ip route add 10.2.0.0/24 dev wg0
 
     gw-b:
       kind: linux
       image: alpine:latest
+      binds:
+        - ./keys:/tmp/keys
       exec:
         - apk add --no-cache wireguard-tools tcpdump iproute2
 
@@ -122,14 +140,19 @@ topology:
         - ip route replace default via 203.0.113.1
         - sysctl -w net.ipv4.ip_forward=1
 
-        # 2. Create and configure the WireGuard interface (wg0)
+        # 2. Generate gw-b key pair if missing and wait for gw-a public key
+        - mkdir -p /tmp/keys
+        - sh -c '[ -f /tmp/keys/gw-b.key ] || (wg genkey > /tmp/keys/gw-b.key && wg pubkey < /tmp/keys/gw-b.key > /tmp/keys/gw-b.pub)'
+        - sh -c 'i=0; while [ ! -s /tmp/keys/gw-a.pub ] && [ $i -lt 50 ]; do sleep 0.2; i=$((i+1)); done'
+
+        # 3. Create and configure the WireGuard interface (wg0)
         - ip link add dev wg0 type wireguard
         - ip addr add 172.16.0.2/30 dev wg0
-        - sh -c "echo 'yK2TEOIUH9ZVtxm3aPKNqqV2T5VLszSSXfgL9ids30Q=' > /tmp/private.key"
-        - wg set wg0 listen-port 51820 private-key /tmp/private.key peer Ix3WRdpj7EWXOjv9JjSiAMVJSgGucEC/2ewjqsYMVhE= allowed-ips 172.16.0.1/32,10.1.0.0/24 endpoint 198.51.100.2:51820 persistent-keepalive 15
+        - wg set wg0 listen-port 51820 private-key /tmp/keys/gw-b.key
+        - sh -c 'wg set wg0 peer "$(cat /tmp/keys/gw-a.pub)" allowed-ips 172.16.0.1/32,10.1.0.0/24 endpoint 198.51.100.2:51820 persistent-keepalive 15'
         - ip link set up dev wg0
 
-        # 3. Route Site A's subnet into the WireGuard interface
+        # 4. Route Site A's subnet into the WireGuard interface
         - ip route add 10.1.0.0/24 dev wg0
 
     host-a:
@@ -156,13 +179,14 @@ topology:
     - endpoints: ["gw-b:eth1", "host-b:eth1"]
 ```
 
-*(Note: If you want to generate fresh keypairs in your own environment, run `wg genkey | tee privatekey | wg pubkey > publickey` on each node and swap the keys accordingly.)*
+### Step 2: Deploy (or Redeploy) the Topology
 
-### Step 2: Deploy the Topology
+Ensure the `keys` directory exists before deploying (`mkdir -p keys`), load the `wireguard` kernel module, and deploy with `--reconfigure` whenever updating keys or `exec` blocks:
 
 ```bash
+mkdir -p keys
 sudo modprobe wireguard
-sudo containerlab deploy -t wg-lab.clab.yml
+sudo containerlab deploy -t wg-lab.clab.yml --reconfigure
 ```
 
 ---
@@ -171,7 +195,7 @@ sudo containerlab deploy -t wg-lab.clab.yml
 
 ### 1. Inspect WireGuard Interface & Handshake Status
 
-Run `wg show` on `gw-a` to inspect the active interface, peer endpoint, allowed IPs, latest cryptographic handshake timestamp, and transfer counters:
+Run `wg show` on `gw-a` (and `gw-b`) to confirm the active public keys match, a `latest handshake` timestamp is present, and `received` bytes are non-zero:
 
 ```bash
 docker exec -it clab-wg-lab-gw-a wg show
@@ -180,11 +204,11 @@ docker exec -it clab-wg-lab-gw-a wg show
 *Expected Output:*
 ```text
 interface: wg0
-  public key: u9I2o5P8a1S4d7F0g3H6j9K2l5Z8x1C4v7B0n3M6q90=
+  public key: <gw-a-generated-public-key>
   private key: (hidden)
   listening port: 51820
 
-peer: l3Q9xR7v2P5m8K1n4J6h9G2f5D8s1A4z7X0c3V6b9N0=
+peer: <gw-b-generated-public-key>
   endpoint: 203.0.113.2:51820
   allowed ips: 172.16.0.2/32, 10.2.0.0/24
   latest handshake: 12 seconds ago
