@@ -144,7 +144,7 @@ topology:
       exec:
         - apk add --no-cache curl python3 tcpdump iproute2
         # TODO: Configure eth1 (10.10.0.100/24) and default route via 10.10.0.1
-        # TODO: Create /tmp/status.json with '{"hub":"hq-server","vpn":"operational"}' and start HTTP server on port 8080
+        - sh -c 'echo '''{"hub":"hq-server","vpn":"operational"}''' > /tmp/status.json && nohup python3 -m http.server 8080 --bind 0.0.0.0 -d /tmp >/tmp/http.log 2>&1 &'
 
     host-east:
       kind: linux
