@@ -10,6 +10,20 @@ Your primary task is to configure a single WireGuard interface (`wg0`) on the ce
 
 ## 1. Network Topology & IP Allocation
 
+The complete topology below uses three pre-generated Curve25519 keypairs so all tunnels establish handshakes immediately upon deployment:
+
+* **`hq-gw` (Hub):**
+  * **Private Key:** `yI3JXo/7F0ofNjyJsXbHklEst4yZN4/AiJJ4Xmtaok0=`
+  * **Public Key:** `Ix3WRdpj7EWXOjv9JjSiAMVJSgGucEC/2ewjqsYMVhE=`
+* **`branch-east` (Spoke 1):**
+  * **Private Key:** `yK2TEOIUH9ZVtxm3aPKNqqV2T5VLszSSXfgL9ids30Q=`
+  * **Public Key:** `xlVbQyIZXZ/azpUgJDYJodxHJKw3u0Gl7AeFrH3O1S8=`
+* **`branch-west` (Spoke 2):**
+  * **Private Key:** `4H1p+R8uK0m2N5v8X1z4B7d0G3j6M9p2S5v8Y1b4E1w=`
+  * **Public Key:** `n8K2p5S8v1Y4b7E0h3K6n9Q2t5W8z1C4f7I0l3O6r9A=`
+
+*(Note: Alternatively, students can generate fresh keypairs via `apt install wireguard && wg genkey | tee private.key | wg pubkey > public.key`.)*
+
 Use the diagram below to configure your Containerlab node interfaces, WireGuard tunnel endpoints, and subnet assignments across the HQ (`10.10.0.0/24`), Branch East (`10.20.0.0/24`), Branch West (`10.30.0.0/24`), Tunnel (`172.31.0.0/24`), and Public WAN (`192.0.2.0/24`, `198.51.100.0/24`, `203.0.113.0/24`) networks.
 
 ```mermaid
