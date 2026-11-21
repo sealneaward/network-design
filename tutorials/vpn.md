@@ -246,6 +246,65 @@ Trigger `curl http://10.2.0.10:8080/secret.txt` from `host-a` in another termina
 docker exec -it clab-wg-lab-host-a curl http://10.2.0.10:8080/secret.txt
 ```
 
+*Example Output on `gw-a`:*
+```text
+listening on wg0, link-type RAW (Raw IP), snapshot length 262144 bytes
+16:17:40.273905 IP 10.1.0.10.48226 > 10.2.0.10.8080: Flags [S], seq 3896811808, win 56760, options [mss 9460,sackOK,TS val 3432533096 ecr 0,nop,wscale 10], length 0
+E..<..@.?.>.
+..
+
+..
+.b...D. ..............$....
+..Lh.......
+
+16:17:40.274217 IP 10.2.0.10.8080 > 10.1.0.10.48226: Flags [S.], seq 849914565, ack 3896811809, win 56688, options [mss 9460,sackOK,TS val 1400566937 ecr 3432533096,nop,wscale 10], length 0
+E..<..@.?.'.
+..
+
+..
+...b2....D.!...p.I....$....
+Sz....Lh...
+
+16:17:40.274240 IP 10.1.0.10.48226 > 10.2.0.10.8080: Flags [.], ack 1, win 56, options [nop,nop,TS val 3432533096 ecr 1400566937], length 0
+E..4..@.?.?.
+..
+
+..
+.b...D.!2......8.......
+..LhSz..
+16:17:40.274303 IP 10.1.0.10.48226 > 10.2.0.10.8080: Flags [P.], seq 1:89, ack 1, win 56, options [nop,nop,TS val 3432533096 ecr 1400566937], length 88: HTTP: GET /secret.txt HTTP/1.1
+E.....@.?.>.
+..
+
+..
+.b...D.!2......8.......
+..LhSz..GET /secret.txt HTTP/1.1
+Host: 10.2.0.10:8080
+User-Agent: curl/8.23.0
+Accept: */*
+
+
+16:17:40.274642 IP 10.2.0.10.8080 > 10.1.0.10.48226: Flags [.], ack 89, win 56, options [nop,nop,TS val 1400566937 ecr 3432533096], length 0
+E..4..@.?.q*
+..
+
+..
+...b2....D.y...8.9.....
+Sz....Lh
+16:17:40.275148 IP 10.2.0.10.8080 > 10.1.0.10.48226: Flags [P.], seq 1:188, ack 89, win 56, options [nop,nop,TS val 1400566938 ecr 3432533096], length 187: HTTP: HTTP/1.0 200 OK
+E.....@.?.pn
+..
+
+..
+...b2....D.y...8J......
+Sz....LhHTTP/1.0 200 OK
+Server: SimpleHTTP/0.6 Python/3.14.10
+Date: Sat, 21 Nov 2026 16:17:40 GMT
+Content-type: text/plain
+Content-Length: 31
+Last-Modified: Sat, 21 Nov 2026 16:15:07 GMT
+```
+
 ### 2. Capture Encrypted WireGuard UDP Packets on the ISP (`isp`)
 
 Now run `tcpdump` on the untrusted `isp` router:
