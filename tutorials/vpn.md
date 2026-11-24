@@ -66,7 +66,83 @@ graph LR
 
 ---
 
-## 3. Containerlab Topology & WireGuard Configuration
+## 3. End-to-End Packet Walkthrough (`host-a` $\rightarrow$ `host-b`)
+
+Understanding how a packet moves from `host-a` (`10.1.0.10`) to `host-b` (`10.2.0.10`) reveals how standard Linux IP routing and WireGuard's **Cryptokey Routing** work together without NAT or complex IPsec policies.
+
+### Packet Traversal Sequence Diagram
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant HA as host-a<br/>(10.1.0.10)
+    participant GWA_LAN as gw-a (eth1 / Kernel)<br/>(10.1.0.1)
+    participant GWA_WG as gw-a (wg0 / eth2)<br/>(WAN: 198.51.100.2)
+    participant ISP as isp Router<br/>(198.51.100.1 ↔ 203.0.113.1)
+    participant GWB_WG as gw-b (eth2 / wg0)<br/>(WAN: 203.0.113.2)
+    participant GWB_LAN as gw-b (Kernel / eth1)<br/>(10.2.0.1)
+    participant HB as host-b<br/>(10.2.0.10)
+
+    Note over HA: App generates packet<br/>Src: 10.1.0.10 | Dst: 10.2.0.10
+    HA->>GWA_LAN: 1. Route lookup on Dst (10.2.0.10)<br/>No local match → Default GW 10.1.0.1 (eth1)
+
+    GWA_LAN->>GWA_WG: 2. Kernel route lookup on Dst (10.2.0.10)<br/>Matches 10.2.0.0/24 → Forward to dev wg0
+
+    Note over GWA_WG: 3. Cryptokey Routing (Egress)<br/>Matches Dst 10.2.0.10 against Peer AllowedIPs<br/>Encrypts inner IP packet with gw-b's Public Key<br/>Wraps in Outer UDP :51820<br/>Outer Src: 198.51.100.2 | Outer Dst: 203.0.113.2
+
+    GWA_WG->>ISP: 4. Outer route lookup on Dst (203.0.113.2)<br/>Matches default via 198.51.100.1 (eth2)
+
+    ISP->>GWB_WG: 5. ISP evaluates Outer Dst ONLY (203.0.113.2)<br/>Matches connected subnet 203.0.113.0/24 (eth2)<br/>(Inner 10.x.x.x headers are completely encrypted)
+
+    Note over GWB_WG: 6. Decrypt & Cryptokey Routing (Ingress)<br/>UDP :51820 → Decrypts via gw-b Private Key<br/>Validates Inner Src (10.1.0.10) ∈ Peer AllowedIPs<br/>Injects decrypted inner packet out of wg0
+
+    GWB_WG->>GWB_LAN: 7. Kernel route lookup on Inner Dst (10.2.0.10)<br/>Matches connected subnet 10.2.0.0/24 → dev eth1
+
+    GWB_LAN->>HB: 8. Delivers original packet to host-b<br/>Src: 10.1.0.10 | Dst: 10.2.0.10
+```
+
+### Step-by-Step IP Evaluation & Packet Transformation
+
+1. **`host-a` (Originating Host Routing):**
+   * **Packet Headers:** `Src: 10.1.0.10` | `Dst: 10.2.0.10`
+   * **IP Evaluated:** **Destination IP (`10.2.0.10`)**.
+   * **How it's evaluated:** `host-a` checks its routing table for `10.2.0.10`. Because it is not in its local subnet (`10.1.0.0/24`), it falls back to its default route (`default via 10.1.0.1 dev eth1`), resolves `10.1.0.1`'s MAC address via ARP, and transmits the frame to `gw-a`.
+
+2. **`gw-a` (Kernel Forwarding & Tunnel Interface Selection):**
+   * **Packet Headers:** `Src: 10.1.0.10` | `Dst: 10.2.0.10`
+   * **IP Evaluated:** **Destination IP (`10.2.0.10`)**.
+   * **How it's evaluated:** `gw-a` receives the packet on `eth1`. Since `net.ipv4.ip_forward=1` is enabled, the Linux kernel performs a routing table lookup on `10.2.0.10`. It finds the static route `10.2.0.0/24 dev wg0` and hands the unencrypted IP packet directly to the virtual `wg0` interface. *(Note: Notice that `wg0`'s own tunnel IP `172.16.0.1` is not even needed as a next-hop IP because `wg0` is a Layer 3 point-to-multipoint interface).*
+
+3. **`gw-a` (`wg0` Cryptokey Routing & UDP Encapsulation):**
+   * **Inner Packet (Encrypted Payload):** `Src: 10.1.0.10` | `Dst: 10.2.0.10`
+   * **Outer Packet (Clear-Text Transport):** `Src: 198.51.100.2:51820` | `Dst: 203.0.113.2:51820` (UDP)
+   * **IPs Evaluated:** **Inner Destination IP (`10.2.0.10`)** and **Outer Destination IP (`203.0.113.2`)**.
+   * **How they're evaluated:**
+     * **Cryptokey Lookup:** Inside `wg0`, WireGuard inspects the **Inner Destination IP (`10.2.0.10`)** and compares it against the `AllowedIPs` configured for every peer. It matches `10.2.0.0/24` on `gw-b`'s peer entry.
+     * **Encryption & Encapsulation:** WireGuard encrypts the entire original IP packet using ChaCha20-Poly1305 with the session key derived from `gw-b`'s public key, prepends a WireGuard transport header, and wraps it in a new UDP datagram destined for `gw-b`'s configured `endpoint` (`203.0.113.2:51820`).
+     * **Outer Routing:** The Linux kernel now routes this *new* outer packet by evaluating the **Outer Destination IP (`203.0.113.2`)**, matching `default via 198.51.100.1 dev eth2`.
+
+4. **`isp` (Untrusted Transit Router):**
+   * **Outer Packet Headers:** `Src: 198.51.100.2:51820` | `Dst: 203.0.113.2:51820`
+   * **IP Evaluated:** **Outer Destination IP (`203.0.113.2`)**.
+   * **How it's evaluated:** The ISP router has **zero routes** for `10.1.0.0/24` or `10.2.0.0/24` and cannot inspect them because they are encrypted inside the UDP payload. It only evaluates `203.0.113.2`, sees that it belongs to its directly connected subnet `203.0.113.0/24` on `eth2`, and forwards the UDP packet to `gw-b`.
+
+5. **`gw-b` (Decryption & Ingress Cryptokey Validation):**
+   * **Outer Packet Received:** `Src: 198.51.100.2:51820` | `Dst: 203.0.113.2:51820`
+   * **Inner Packet Extracted:** `Src: 10.1.0.10` | `Dst: 10.2.0.10`
+   * **IPs Evaluated:** **Outer Destination Port (`UDP/51820`)** and **Inner Source IP (`10.1.0.10`)**.
+   * **How they're evaluated:**
+     * **Decryption:** `gw-b` receives the UDP packet on `eth2:51820`. The kernel WireGuard module identifies the sender via the WireGuard receiver index, verifies the Poly1305 authentication tag, and decrypts the payload.
+     * **Reverse-Path Cryptokey Check (Anti-Spoofing):** Once decrypted, WireGuard inspects the **Inner Source IP (`10.1.0.10`)** and verifies that it is permitted by `gw-a`'s `AllowedIPs` (`172.16.0.1/32, 10.1.0.0/24`). Because `10.1.0.10` matches `10.1.0.0/24`, the packet is accepted and emerges from `wg0` as a normal decapsulated IP packet. *(If `10.1.0.10` were not in `AllowedIPs`, `gw-b` would silently drop it here).*
+
+6. **`gw-b` to `host-b` (Local LAN Delivery):**
+   * **Packet Headers:** `Src: 10.1.0.10` | `Dst: 10.2.0.10`
+   * **IP Evaluated:** **Inner Destination IP (`10.2.0.10`)**.
+   * **How it's evaluated:** Now that the original packet has exited `wg0` in plaintext, `gw-b`'s kernel routes it using the **Destination IP (`10.2.0.10`)**. It matches the directly connected route `10.2.0.0/24 dev eth1` and delivers the packet over the Site B LAN to `host-b`. To `host-b`, the packet appears to have arrived directly from `10.1.0.10` without any NAT modification.
+
+---
+
+## 4. Containerlab Topology & WireGuard Configuration
 
 Because WireGuard configurations are short and self-contained, we can configure everything directly inside a single Containerlab YAML file (`wg-lab.clab.yml`).
 
@@ -191,7 +267,7 @@ sudo containerlab deploy -t wg-lab.clab.yml --reconfigure
 
 ---
 
-## 4. Testing VPN Connectivity & Application Traffic
+## 5. Testing VPN Connectivity & Application Traffic
 
 ### 1. Inspect WireGuard Interface & Handshake Status
 
@@ -251,7 +327,7 @@ default via 198.51.100.1 dev eth2
 
 ---
 
-## 5. Observing WireGuard Encryption Across the Network
+## 6. Observing WireGuard Encryption Across the Network
 
 Because WireGuard creates a real virtual network interface (`wg0`), you can observe both the **unencrypted inner IP packets** entering `wg0` and the **ChaCha20-Poly1305 encrypted UDP packets** leaving `eth2` on the exact same router!
 
@@ -373,7 +449,7 @@ You can test WireGuard's built-in **Cryptokey Routing** security by attempting t
 
 ---
 
-## 6. Clean Up
+## 7. Clean Up
 
 Destroy the lab and remove all virtual interfaces when finished:
 
